@@ -1,11 +1,22 @@
 import json
 import os
+import logging
+import time
 from threading import BoundedSemaphore, Lock
 from typing import Optional
 
 from llama_cpp import Llama
 
-from api.config import settings
+from api.config import settings, BRAIN_STRUCTURE
+
+logger = logging.getLogger("second_brain.llm")
+ALLOWED_CATEGORY_ROOTS = ", ".join(BRAIN_STRUCTURE)
+CATEGORY_RULE = (
+    "CATEGORY RULE:\n"
+    f"- The 'category' value MUST start with one of these roots: {ALLOWED_CATEGORY_ROOTS}\n"
+    "- You may append subfolders after the root (e.g. 10_network/meetings).\n"
+    "- Do NOT prepend labels like '03_LOGS & ANALYSIS'."
+)
 
 _inference_slots = BoundedSemaphore(
     value=max(1, settings.LLM_MAX_CONCURRENT_PREDICTIONS)
@@ -29,10 +40,13 @@ def get_model() -> Llama:
                 f"LLM model file not found: {settings.LLM_MODEL_PATH}"
             )
 
-        print(
-            f"Loading local GGUF model: {settings.LLM_MODEL_PATH} "
-            f"(ctx={settings.LLM_CONTEXT_LENGTH}, gpu_layers={settings.LLM_N_GPU_LAYERS}, "
-            f"threads={settings.LLM_THREADS}, batch={settings.LLM_BATCH_SIZE})"
+        logger.info(
+            "Loading local GGUF model | path=%s | ctx=%d | gpu_layers=%d | threads=%d | batch=%d",
+            settings.LLM_MODEL_PATH,
+            settings.LLM_CONTEXT_LENGTH,
+            settings.LLM_N_GPU_LAYERS,
+            settings.LLM_THREADS,
+            settings.LLM_BATCH_SIZE,
         )
 
         llama_kwargs = {
@@ -52,12 +66,12 @@ def get_model() -> Llama:
         try:
             _model = Llama(**llama_kwargs)
         except TypeError as e:
-            print(f"Some advanced llama.cpp args are unsupported: {e}")
+            logger.warning("Some advanced llama.cpp args are unsupported: %s", e)
             for arg in ("flash_attn", "offload_kqv"):
                 llama_kwargs.pop(arg, None)
             _model = Llama(**llama_kwargs)
 
-        print("Local GGUF model loaded")
+        logger.info("Local GGUF model loaded")
         return _model
 
 
@@ -65,8 +79,8 @@ def warmup_model() -> bool:
     try:
         get_model()
         return True
-    except Exception as e:
-        print(f"LLM warmup warning: {e}")
+    except Exception:
+        logger.exception("LLM warmup failed")
         return False
 
 
@@ -120,17 +134,21 @@ def _extract_json_object(raw: str) -> Optional[dict]:
         return None
 
 
-def process_session_with_llm(session_data: dict) -> dict:
+def process_session_with_llm(session_data: dict, job_id: str = "unknown") -> dict:
     """
     Analyze a complete activity session and generate a single synthesized note
     using the in-process GGUF model.
     """
     skill_content = load_skill()
 
+    started_at = time.perf_counter()
+    request_type = "unknown"
     # If it is a normal navigation session
     if "activities" in session_data:
         activities = session_data.get("activities", [])
+        request_type = "session"
         if not activities:
+            logger.warning("LLM request skipped: empty activities | job_id=%s", job_id)
             return None
         user_context = format_session_context(activities)
         prompt_instruction = """
@@ -148,7 +166,9 @@ TASK:
     # If it is an audio transcription (conversation, voice note, etc.)
     elif "transcription" in session_data:
         transcription = session_data.get("transcription", "")
+        request_type = "audio"
         if not transcription:
+            logger.warning("LLM request skipped: empty transcription | job_id=%s", job_id)
             return None
         user_context = f"TRANSCRIPTION OF AUDIO RECORDING:\n\n{transcription}"
         prompt_instruction = """
@@ -164,14 +184,19 @@ TASK:
 6. Do not include any other keys or extra text.
 """
     else:
+        logger.warning("LLM request skipped: unsupported payload | job_id=%s", job_id)
         return None
 
     messages = [
         {"role": "system", "content": skill_content},
-        {"role": "user", "content": user_context + "\n" + prompt_instruction},
+        {
+            "role": "user",
+            "content": user_context + "\n" + CATEGORY_RULE + "\n" + prompt_instruction,
+        },
     ]
 
     try:
+        logger.info("LLM inference started | job_id=%s | type=%s", job_id, request_type)
         model = get_model()
 
         with _inference_slots:
@@ -186,20 +211,28 @@ TASK:
         parsed = _extract_json_object(content)
 
         if not parsed:
-            print("Error processing session with local LLM: invalid JSON output")
+            logger.error("LLM inference failed: invalid JSON output | job_id=%s", job_id)
             return None
 
         required = {"category", "filename", "content"}
         if not required.issubset(parsed.keys()):
-            print("Error processing session with local LLM: missing required keys")
+            logger.error("LLM inference failed: missing required keys | job_id=%s", job_id)
             return None
 
+        logger.info("LLM inference completed | job_id=%s | type=%s", job_id, request_type)
         return {
             "category": str(parsed["category"]),
             "filename": str(parsed["filename"]),
             "content": str(parsed["content"]),
         }
 
-    except Exception as e:
-        print(f"Error processing session with local LLM: {e}")
+    except Exception:
+        logger.exception("Error processing with local LLM | job_id=%s | type=%s", job_id, request_type)
         return None
+    finally:
+        logger.info(
+            "LLM inference finished | job_id=%s | type=%s | duration_ms=%d",
+            job_id,
+            request_type,
+            int((time.perf_counter() - started_at) * 1000),
+        )

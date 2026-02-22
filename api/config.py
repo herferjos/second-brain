@@ -28,6 +28,7 @@ class Settings(BaseModel):
         int(os.getenv("LLM_SEED")) if os.getenv("LLM_SEED") not in (None, "") else None
     )
     LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "2048"))
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
 
 settings = Settings()

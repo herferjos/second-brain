@@ -14,3 +14,8 @@ __pycache__/
 *.pyzwzw
 *.pyzwzwzw
 *.pyzwzwzwzw
+.DS_Store
+api/second_brain/*
+!api/second_brain/05_skills/
+api/second_brain/05_skills/*
+!api/second_brain/05_skills/second_brain_expert.md

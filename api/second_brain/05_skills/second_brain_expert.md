@@ -62,3 +62,9 @@ Respond ONLY with a JSON object:
   "filename": "name.md",
   "content": "--- \ntype: X\nstatus: active\narea: \"[[area_name]]\"\ntags: [tag1, tag2]\n--- \n# Title\n\n## Content..."
 }
+
+## CATEGORY CONSTRAINT (STRICT)
+- `category` MUST start with exactly one valid root folder:
+  `00_inbox`, `01_core`, `02_areas`, `03_projects`, `04_knowledge`, `05_skills`, `06_decisions`, `07_lab`, `08_reflections`, `09_failures`, `10_network`, `11_resources`, `12_log`.
+- You MAY add subfolders after the root (e.g., `10_network/meetings`).
+- Do NOT prepend section labels such as `02_SYSTEMS` or `03_LOGS & ANALYSIS`.

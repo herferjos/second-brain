@@ -5,69 +5,16 @@ from typing import List, Optional
 import uvicorn
 import shutil
 import os
-import time
-import requests
 
-from api.config import settings
-from api.services.llm import process_session_with_llm
+from api.services.llm import process_session_with_llm, warmup_model
 from api.services.brain_manager import save_to_brain
 from api.services.transcriber import transcriber
 from api.services.life_log import append_entry
 
 
-def is_model_loaded():
-    """Check if the target model is already loaded in LM Studio."""
-    try:
-        models_url = f"{settings.LM_STUDIO_URL}/models"
-        response = requests.get(models_url, timeout=10)
-        response.raise_for_status()
-        loaded = response.json().get("data", [])
-        return any(m.get("id") == settings.LLM_MODEL for m in loaded)
-    except Exception:
-        return False
-
-
-def load_llm_model():
-    base_url = settings.LM_STUDIO_URL.rstrip("/")
-    if base_url.endswith("/v1"):
-        base_url = base_url[:-3]
-    load_url = f"{base_url}/api/v1/models/load"
-
-    print(
-        f"🔄 Loading LLM: {settings.LLM_MODEL} ({settings.LLM_CONTEXT_LENGTH} tokens)"
-    )
-
-    max_retries = 30
-    for attempt in range(max_retries):
-        try:
-            if is_model_loaded():
-                print(f"✅ LLM already loaded: {settings.LLM_MODEL}")
-                return
-
-            payload = {
-                "model": settings.LLM_MODEL,
-                "context_length": settings.LLM_CONTEXT_LENGTH,
-            }
-            response = requests.post(load_url, json=payload, timeout=300)
-            response.raise_for_status()
-            result = response.json()
-            print(
-                f"✅ LLM loaded: {result.get('instance_id')} in {result.get('load_time_seconds', '?')}s"
-            )
-            return
-        except requests.exceptions.ConnectionError:
-            print(f"⏳ Waiting for LM Studio... ({attempt + 1}/{max_retries})")
-            time.sleep(5)
-        except Exception as e:
-            print(f"⚠️  LLM load warning: {e}")
-            return
-
-    print("⚠️  Could not connect to LM Studio - LLM features may not work")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_llm_model()
+    warmup_model()
     yield
 
 

@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV LM_STUDIO_URL=http://host.docker.internal:1234/v1
+ENV LLM_MODEL_PATH=/models/model.gguf
 
 EXPOSE 8000
 

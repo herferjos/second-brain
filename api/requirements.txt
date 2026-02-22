@@ -1,10 +1,10 @@
 # Core Dependencies
 fastapi
 uvicorn
-requests
 pydantic
 python-dotenv
 python-multipart
+llama-cpp-python
 
 # Audio Transcription
 faster-whisper

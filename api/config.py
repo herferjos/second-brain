@@ -2,12 +2,32 @@ import os
 from pydantic import BaseModel
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class Settings(BaseModel):
-    LM_STUDIO_URL: str = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1")
     BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
     BRAIN_PATH: str = os.path.join(BASE_DIR, "second_brain")
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemma-3n-e2b-it")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "local-gguf-model")
+    LLM_MODEL_PATH: str = os.getenv("LLM_MODEL_PATH", "/models/model.gguf")
     LLM_CONTEXT_LENGTH: int = int(os.getenv("LLM_CONTEXT_LENGTH", "32768"))
+    LLM_THREADS: int = int(os.getenv("LLM_THREADS", "6"))
+    LLM_N_GPU_LAYERS: int = int(os.getenv("LLM_N_GPU_LAYERS", "30"))
+    LLM_BATCH_SIZE: int = int(os.getenv("LLM_BATCH_SIZE", "512"))
+    LLM_MAX_CONCURRENT_PREDICTIONS: int = int(
+        os.getenv("LLM_MAX_CONCURRENT_PREDICTIONS", "4")
+    )
+    LLM_FLASH_ATTENTION: bool = _env_bool("LLM_FLASH_ATTENTION", True)
+    LLM_USE_MMAP: bool = _env_bool("LLM_USE_MMAP", True)
+    LLM_OFFLOAD_KQV: bool = _env_bool("LLM_OFFLOAD_KQV", True)
+    LLM_SEED: int | None = (
+        int(os.getenv("LLM_SEED")) if os.getenv("LLM_SEED") not in (None, "") else None
+    )
+    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "2048"))
 
 
 settings = Settings()

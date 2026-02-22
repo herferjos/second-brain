@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - LM_STUDIO_URL=http://host.docker.internal:1234/v1
+      - LLM_MODEL=gemma-3n-e2b-it
+      - LLM_CONTEXT_LENGTH=32768
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./api/second_brain:/app/api/second_brain
+    restart: unless-stopped

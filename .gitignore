@@ -1,0 +1,15 @@
+.venv/
+temp/
+tests/audio_file.mp3
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+*.pyzwz
+*.pyzwzw
+*.pyzwzwzw
+*.pyzwzwzwzw

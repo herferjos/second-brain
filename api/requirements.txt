@@ -1,0 +1,10 @@
+# Core Dependencies
+fastapi
+uvicorn
+requests
+pydantic
+python-dotenv
+python-multipart
+
+# Audio Transcription
+faster-whisper

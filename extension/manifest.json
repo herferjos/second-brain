@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Mind-Log: Obsidian Monitor",
+  "version": "1.0",
+  "description": "Monitoriza tu actividad y genera notas automáticas en Obsidian.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "alarms",
+    "scripting",
+    "idle"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["scripts/scraper.js", "scripts/monitor.js", "scripts/content.js"]
+    }
+  ]
+}

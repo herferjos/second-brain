@@ -28,6 +28,30 @@ class Settings(BaseModel):
         int(os.getenv("LLM_SEED")) if os.getenv("LLM_SEED") not in (None, "") else None
     )
     LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "2048"))
+    AUDIO_AUTO_LISTEN: bool = _env_bool("AUDIO_AUTO_LISTEN", False)
+    AUDIO_INPUT_DEVICE: str | None = os.getenv("AUDIO_INPUT_DEVICE") or None
+    AUDIO_SAMPLE_RATE: int = int(os.getenv("AUDIO_SAMPLE_RATE", "16000"))
+    AUDIO_CHANNELS: int = int(os.getenv("AUDIO_CHANNELS", "1"))
+    AUDIO_FRAME_MS: int = int(os.getenv("AUDIO_FRAME_MS", "20"))
+    AUDIO_VAD_MODE: int = int(os.getenv("AUDIO_VAD_MODE", "2"))
+    AUDIO_VAD_START_TRIGGER_MS: int = int(os.getenv("AUDIO_VAD_START_TRIGGER_MS", "240"))
+    AUDIO_VAD_START_WINDOW_MS: int = int(os.getenv("AUDIO_VAD_START_WINDOW_MS", "400"))
+    AUDIO_VAD_END_SILENCE_MS: int = int(os.getenv("AUDIO_VAD_END_SILENCE_MS", "900"))
+    AUDIO_VAD_PRE_ROLL_MS: int = int(os.getenv("AUDIO_VAD_PRE_ROLL_MS", "300"))
+    AUDIO_VAD_MIN_SEGMENT_MS: int = int(os.getenv("AUDIO_VAD_MIN_SEGMENT_MS", "1000"))
+    AUDIO_VAD_MAX_SEGMENT_MS: int = int(os.getenv("AUDIO_VAD_MAX_SEGMENT_MS", "30000"))
+    AUDIO_QUEUE_DIR: str = os.getenv("AUDIO_QUEUE_DIR", "temp/spool_audio")
+    AUDIO_QUEUE_MAX_SIZE: int = int(os.getenv("AUDIO_QUEUE_MAX_SIZE", "200"))
+    AUDIO_WORKER_POLL_SECONDS: float = float(os.getenv("AUDIO_WORKER_POLL_SECONDS", "1.0"))
+    AUDIO_FLUSH_MAX_WAIT_SECONDS: float = float(
+        os.getenv("AUDIO_FLUSH_MAX_WAIT_SECONDS", "60")
+    )
+    AUDIO_FLUSH_MIN_WORDS: int = int(os.getenv("AUDIO_FLUSH_MIN_WORDS", "100"))
+    AUDIO_FLUSH_SILENCE_GAP_SECONDS: float = float(
+        os.getenv("AUDIO_FLUSH_SILENCE_GAP_SECONDS", "4")
+    )
+    AUDIO_MAX_BATCH_SEGMENTS: int = int(os.getenv("AUDIO_MAX_BATCH_SEGMENTS", "8"))
+    AUDIO_MAX_RETRIES: int = int(os.getenv("AUDIO_MAX_RETRIES", "3"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
 

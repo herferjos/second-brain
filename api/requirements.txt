@@ -8,3 +8,5 @@ llama-cpp-python
 
 # Audio Transcription
 faster-whisper
+sounddevice
+webrtcvad-wheels

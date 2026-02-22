@@ -15,21 +15,53 @@ from api.services.llm import process_session_with_llm, warmup_model
 from api.services.brain_manager import save_to_brain
 from api.services.transcriber import transcriber
 from api.services.life_log import append_entry
+from api.services.audio_queue import PersistentAudioQueue
+from api.services.audio_listener import AudioListener
+from api.services.audio_worker import AudioProcessingWorker
 
 setup_logging(settings.LOG_LEVEL)
 logger = logging.getLogger("second_brain.api")
 
+audio_queue_runtime = PersistentAudioQueue(
+    spool_dir=settings.AUDIO_QUEUE_DIR,
+    max_size=settings.AUDIO_QUEUE_MAX_SIZE,
+)
+audio_worker_runtime = AudioProcessingWorker(audio_queue_runtime)
+audio_listener_runtime = AudioListener(audio_queue_runtime)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    auto_audio_started = False
     logger.info("API startup: warming up LLM model")
     warmup_ok = warmup_model()
     if warmup_ok:
         logger.info("API startup: LLM warmup completed")
     else:
         logger.warning("API startup: LLM warmup failed")
-    yield
-    logger.info("API shutdown completed")
+
+    if settings.AUDIO_AUTO_LISTEN:
+        try:
+            audio_queue_runtime.start()
+            audio_worker_runtime.start()
+            audio_listener_runtime.start()
+            auto_audio_started = True
+            logger.info(
+                "API startup: continuous audio pipeline enabled | queue_dir=%s",
+                settings.AUDIO_QUEUE_DIR,
+            )
+        except Exception:
+            logger.exception("API startup: failed to start continuous audio pipeline")
+    else:
+        logger.info("API startup: continuous audio pipeline is disabled")
+
+    try:
+        yield
+    finally:
+        if auto_audio_started:
+            audio_listener_runtime.stop()
+            audio_worker_runtime.stop()
+        logger.info("API shutdown completed")
 
 
 app = FastAPI(

@@ -52,6 +52,15 @@ This system monitors your activity and generates automatic notes in Obsidian usi
    - `LLM_USE_MMAP` — Enable memory-mapped model loading (default: `true`)
    - `LLM_OFFLOAD_KQV` — Offload KV-related ops to GPU when available (default: `true`)
    - `LLM_SEED` — Optional deterministic seed. If omitted, random seed is used.
+   - `AUDIO_AUTO_LISTEN` — Enable continuous microphone listening with VAD (default: `false`)
+   - `AUDIO_INPUT_DEVICE` — Optional microphone device id/name used by `sounddevice`
+   - `AUDIO_QUEUE_DIR` — Disk spool for queued audio segments (default: `temp/spool_audio`)
+   - `AUDIO_VAD_MODE` — WebRTC VAD aggressiveness 0..3 (default: `2`)
+   - `AUDIO_VAD_START_TRIGGER_MS` — Voice needed to start a segment (default: `240`)
+   - `AUDIO_VAD_END_SILENCE_MS` — Silence needed to close a segment (default: `900`)
+   - `AUDIO_FLUSH_MAX_WAIT_SECONDS` — Max wait before flushing queued transcript text to LLM (default: `60`)
+   - `AUDIO_FLUSH_MIN_WORDS` — Min words before forcing flush to LLM (default: `100`)
+   - `AUDIO_FLUSH_SILENCE_GAP_SECONDS` — If gap between segments exceeds this, previous batch is flushed (default: `4`)
 7. Notes about parity with LM Studio:
    - `Unified KV Cache` and `K/V Cache Quantization Type` are experimental in LM Studio and do not have a stable 1:1 flag here.
    - `RoPE Frequency Base/Scale` remain in automatic mode unless you set custom rope parameters in code.
@@ -67,6 +76,7 @@ The `second_brain/` folder is mounted as a volume so notes persist across contai
 ## 4. Usage
 - Start the stack with `docker compose up --build`.
 - The extension will automatically send a summary of your activity every 5 minutes.
+- If you want fully automatic voice capture, set `AUDIO_AUTO_LISTEN=true` and keep the API process running on a host with microphone access.
 - The notes will appear in your Obsidian folder in organized Markdown format.
 
 ## Generated Note Structure

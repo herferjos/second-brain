@@ -4,7 +4,7 @@ from datetime import datetime
 
 from api.config import settings
 
-LOG_DIR = os.path.join(settings.BRAIN_PATH, "12_log")
+LOG_DIR = os.path.join(settings.VAULT_PATH, "_logs")
 
 
 def _ensure_log_dir():
@@ -16,10 +16,6 @@ def _today_file() -> str:
 
 
 def append_entry(entry_type: str, summary: str, metadata: dict = None):
-    """
-    Append a single life-log entry to today's JSONL file.
-    Each line is a self-contained JSON object — append-only, never modified.
-    """
     _ensure_log_dir()
 
     entry = {

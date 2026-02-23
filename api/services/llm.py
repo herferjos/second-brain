@@ -5,27 +5,63 @@ import time
 from threading import BoundedSemaphore, Lock
 from typing import Optional
 
-from llama_cpp import Llama
-
-from api.config import settings, BRAIN_STRUCTURE
+from api.config import settings
 
 logger = logging.getLogger("second_brain.llm")
-ALLOWED_CATEGORY_ROOTS = ", ".join(BRAIN_STRUCTURE)
-CATEGORY_RULE = (
-    "CATEGORY RULE:\n"
-    f"- The 'category' value MUST start with one of these roots: {ALLOWED_CATEGORY_ROOTS}\n"
-    "- You may append subfolders after the root (e.g. 10_network/meetings).\n"
-    "- Do NOT prepend labels like '03_LOGS & ANALYSIS'."
+LOCATION_RULE = (
+    "LOCATION RULE:\n"
+    "- The 'category' value may be empty (save in vault root) OR a relative subfolder.\n"
+    "- If you want to append to an existing note, you may set 'category' to a relative file path ending in .md.\n"
+    "- Never use absolute paths. Never use '..'.\n"
+    "- Prefer shallow structure and rely on links/tags inside Markdown instead of deep folders.\n"
 )
 
 _inference_slots = BoundedSemaphore(
     value=max(1, settings.LLM_MAX_CONCURRENT_PREDICTIONS)
 )
-_model: Optional[Llama] = None
+_model = None
 _model_lock = Lock()
+_openai_client = None
+_openai_lock = Lock()
 
 
-def get_model() -> Llama:
+def _normalize_provider(value: str) -> str:
+    p = (value or "").strip().lower()
+    if p in {"local", "llama", "llama_cpp", "llamacpp"}:
+        return "local"
+    if p in {"openai", "cloud", "api"}:
+        return "openai"
+    return "local"
+
+
+def _get_openai_client():
+    global _openai_client
+    if _openai_client is not None:
+        return _openai_client
+
+    with _openai_lock:
+        if _openai_client is not None:
+            return _openai_client
+
+        api_key = (settings.LLM_API_KEY or os.getenv("OPENAI_API_KEY", "")).strip()
+        if not api_key:
+            raise ValueError("Missing LLM_API_KEY for LLM_PROVIDER=openai")
+
+        try:
+            from openai import OpenAI
+        except Exception as e:
+            raise RuntimeError("OpenAI client not installed. Add 'openai' to requirements.") from e
+
+        kwargs = {"api_key": api_key}
+        base_url = (settings.LLM_BASE_URL or os.getenv("OPENAI_BASE_URL", "")).strip()
+        if base_url:
+            kwargs["base_url"] = base_url
+
+        _openai_client = OpenAI(**kwargs)
+        return _openai_client
+
+
+def get_model():
     global _model
 
     if _model is not None:
@@ -34,6 +70,13 @@ def get_model() -> Llama:
     with _model_lock:
         if _model is not None:
             return _model
+
+        try:
+            from llama_cpp import Llama
+        except Exception as e:
+            raise RuntimeError(
+                "Local LLM provider requires llama-cpp-python. Install it or switch LLM_PROVIDER=openai."
+            ) from e
 
         if not os.path.exists(settings.LLM_MODEL_PATH):
             raise FileNotFoundError(
@@ -77,7 +120,11 @@ def get_model() -> Llama:
 
 def warmup_model() -> bool:
     try:
-        get_model()
+        provider = _normalize_provider(settings.LLM_PROVIDER)
+        if provider == "openai":
+            _get_openai_client()
+        else:
+            get_model()
         return True
     except Exception:
         logger.exception("LLM warmup failed")
@@ -85,15 +132,12 @@ def warmup_model() -> bool:
 
 
 def load_skill():
-    skill_path = os.path.join(
-        settings.BRAIN_PATH, "05_skills", "second_brain_expert.md"
-    )
-    # Fallback if the skill does not exist in 05_skills
-    if not os.path.exists(skill_path):
-        return "You are a Second Brain Expert. Organize content efficiently."
+    vault_skill = os.path.join(settings.VAULT_PROMPTS_PATH, "_sb_skill.md")
+    if os.path.exists(vault_skill):
+        with open(vault_skill, "r", encoding="utf-8") as f:
+            return f.read()
 
-    with open(skill_path, "r", encoding="utf-8") as f:
-        return f.read()
+    return "You are a Second Brain Expert. Organize content efficiently."
 
 
 def format_session_context(activities: list) -> str:
@@ -103,7 +147,6 @@ def format_session_context(activities: list) -> str:
         context += f"URL: {act.get('url')}\n"
         context += f"Title: {act.get('title')}\n"
         context += f"Timestamp: {act.get('timestamp')}\n"
-        # Limit content to avoid saturating tokens
         content_snippet = act.get("content", "")[:1000].replace("\n", " ")
         context += f"Content Snippet: {content_snippet}...\n"
 
@@ -134,16 +177,65 @@ def _extract_json_object(raw: str) -> Optional[dict]:
         return None
 
 
+def run_json_completion(
+    messages: list[dict],
+    *,
+    temperature: float = 0.2,
+    max_tokens: int | None = None,
+) -> Optional[dict]:
+    provider = _normalize_provider(settings.LLM_PROVIDER)
+    max_tokens = max_tokens or settings.LLM_MAX_TOKENS
+
+    if provider == "openai":
+        client = _get_openai_client()
+
+        try:
+            with _inference_slots:
+                resp = client.chat.completions.create(
+                    model=settings.LLM_MODEL,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={"type": "json_object"},
+                )
+            content = resp.choices[0].message.content
+            return _extract_json_object(content)
+        except Exception as e:
+            logger.warning("OpenAI JSON mode failed, retrying without response_format: %s", e)
+            fallback_messages = list(messages) + [
+                {
+                    "role": "user",
+                    "content": "Return ONLY a JSON object. No prose, no markdown, no code fences.",
+                }
+            ]
+            with _inference_slots:
+                resp = client.chat.completions.create(
+                    model=settings.LLM_MODEL,
+                    messages=fallback_messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            content = resp.choices[0].message.content
+            return _extract_json_object(content)
+
+    model = get_model()
+    with _inference_slots:
+        result = model.create_chat_completion(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format={"type": "json_object"},
+        )
+
+    content = result["choices"][0]["message"]["content"]
+    return _extract_json_object(content)
+
+
 def process_session_with_llm(session_data: dict, job_id: str = "unknown") -> dict:
-    """
-    Analyze a complete activity session and generate a single synthesized note
-    using the in-process GGUF model.
-    """
     skill_content = load_skill()
 
     started_at = time.perf_counter()
     request_type = "unknown"
-    # If it is a normal navigation session
     if "activities" in session_data:
         activities = session_data.get("activities", [])
         request_type = "session"
@@ -163,7 +255,6 @@ TASK:
 5. Do not include any other keys or extra text.
 """
 
-    # If it is an audio transcription (conversation, voice note, etc.)
     elif "transcription" in session_data:
         transcription = session_data.get("transcription", "")
         request_type = "audio"
@@ -191,24 +282,13 @@ TASK:
         {"role": "system", "content": skill_content},
         {
             "role": "user",
-            "content": user_context + "\n" + CATEGORY_RULE + "\n" + prompt_instruction,
+            "content": user_context + "\n" + LOCATION_RULE + "\n" + prompt_instruction,
         },
     ]
 
     try:
         logger.info("LLM inference started | job_id=%s | type=%s", job_id, request_type)
-        model = get_model()
-
-        with _inference_slots:
-            result = model.create_chat_completion(
-                messages=messages,
-                temperature=0.2,
-                max_tokens=settings.LLM_MAX_TOKENS,
-                response_format={"type": "json_object"},
-            )
-
-        content = result["choices"][0]["message"]["content"]
-        parsed = _extract_json_object(content)
+        parsed = run_json_completion(messages, temperature=0.2, max_tokens=settings.LLM_MAX_TOKENS)
 
         if not parsed:
             logger.error("LLM inference failed: invalid JSON output | job_id=%s", job_id)
@@ -227,7 +307,7 @@ TASK:
         }
 
     except Exception:
-        logger.exception("Error processing with local LLM | job_id=%s | type=%s", job_id, request_type)
+        logger.exception("Error processing with LLM | job_id=%s | type=%s", job_id, request_type)
         return None
     finally:
         logger.info(

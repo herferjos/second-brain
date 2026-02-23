@@ -6,3 +6,6 @@ __pycache__
 .cursor
 temp
 *.egg-info
+.env
+vault
+audio_bridge/spool

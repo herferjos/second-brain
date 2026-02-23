@@ -13,55 +13,28 @@ from api.config import settings
 from api.logging_config import setup_logging
 from api.services.llm import process_session_with_llm, warmup_model
 from api.services.brain_manager import save_to_brain
-from api.services.transcriber import transcriber
+from api.services.transcriber import get_transcriber
 from api.services.life_log import append_entry
-from api.services.audio_queue import PersistentAudioQueue
-from api.services.audio_listener import AudioListener
-from api.services.audio_worker import AudioProcessingWorker
+from api.services.notes import list_files as vault_list_files
+from api.services.notes import read_file as vault_read_file
+from api.services.notes import search_text as vault_search_text
+from api.services.notes import write_file as vault_write_file
+from api.services.agentic import archivist_ingest, researcher_answer
 
 setup_logging(settings.LOG_LEVEL)
 logger = logging.getLogger("second_brain.api")
 
-audio_queue_runtime = PersistentAudioQueue(
-    spool_dir=settings.AUDIO_QUEUE_DIR,
-    max_size=settings.AUDIO_QUEUE_MAX_SIZE,
-)
-audio_worker_runtime = AudioProcessingWorker(audio_queue_runtime)
-audio_listener_runtime = AudioListener(audio_queue_runtime)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    auto_audio_started = False
-    logger.info("API startup: warming up LLM model")
+    logger.info("API startup: warming up LLM | provider=%s | model=%s", settings.LLM_PROVIDER, settings.LLM_MODEL)
     warmup_ok = warmup_model()
     if warmup_ok:
-        logger.info("API startup: LLM warmup completed")
+        logger.info("API startup: LLM warmup completed | provider=%s", settings.LLM_PROVIDER)
     else:
-        logger.warning("API startup: LLM warmup failed")
-
-    if settings.AUDIO_AUTO_LISTEN:
-        try:
-            audio_queue_runtime.start()
-            audio_worker_runtime.start()
-            audio_listener_runtime.start()
-            auto_audio_started = True
-            logger.info(
-                "API startup: continuous audio pipeline enabled | queue_dir=%s",
-                settings.AUDIO_QUEUE_DIR,
-            )
-        except Exception:
-            logger.exception("API startup: failed to start continuous audio pipeline")
-    else:
-        logger.info("API startup: continuous audio pipeline is disabled")
-
-    try:
-        yield
-    finally:
-        if auto_audio_started:
-            audio_listener_runtime.stop()
-            audio_worker_runtime.stop()
-        logger.info("API shutdown completed")
+        logger.warning("API startup: LLM warmup failed | provider=%s", settings.LLM_PROVIDER)
+    yield
+    logger.info("API shutdown completed")
 
 
 app = FastAPI(
@@ -84,16 +57,99 @@ class SessionData(BaseModel):
     session_end: str
 
 
+class VaultWriteRequest(BaseModel):
+    path: str
+    content: str
+    mode: str = "overwrite"
+
+
+class AgentIngestRequest(BaseModel):
+    raw_data: str
+
+
+class AgentResearchRequest(BaseModel):
+    question: str
+
+
 @app.get("/")
 def read_root():
     return {"status": "online", "system": "Second Brain Agent"}
 
 
+@app.get("/vault/info")
+def vault_info():
+    return {
+        "vault_path": settings.VAULT_PATH,
+        "vault_logs_path": os.path.join(settings.VAULT_PATH, "_logs"),
+        "notes_count": len(vault_list_files(limit=5000)),
+    }
+
+
+@app.get("/vault/list")
+def vault_list(directory: str = ""):
+    try:
+        return {"files": vault_list_files(directory=directory, limit=5000)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/vault/read")
+def vault_read(path: str):
+    try:
+        return vault_read_file(path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except (IsADirectoryError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/vault/search")
+def vault_search(q: str, directory: str = "", regex: bool = True, case_insensitive: bool = True):
+    try:
+        hits = vault_search_text(
+            q,
+            directory=directory,
+            regex=regex,
+            case_insensitive=case_insensitive,
+            limit_hits=200,
+        )
+        return {
+            "hits": [
+                {"path": h.path, "line_number": h.line_number, "line": h.line} for h in hits
+            ]
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/vault/write")
+def vault_write(req: VaultWriteRequest):
+    try:
+        return vault_write_file(req.path, req.content, mode=req.mode)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/agent/archivist")
+def agent_archivist(req: AgentIngestRequest):
+    try:
+        return archivist_ingest(req.raw_data)
+    except Exception as e:
+        logger.exception("Archivist ingestion failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/agent/research")
+def agent_research(req: AgentResearchRequest):
+    try:
+        return researcher_answer(req.question)
+    except Exception as e:
+        logger.exception("Researcher workflow failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/session")
 async def receive_session(data: SessionData, background_tasks: BackgroundTasks):
-    """
-    Endpoint to receive a complete activity session (idle flush).
-    """
     job_id = uuid4().hex[:8]
     activities_count = len(data.activities)
     logger.info(
@@ -116,9 +172,6 @@ async def receive_session(data: SessionData, background_tasks: BackgroundTasks):
 
 @app.post("/audio")
 async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    """
-    Endpoint to upload and transcribe audio.
-    """
     job_id = uuid4().hex[:8]
     logger.info(
         "Audio upload received | job_id=%s | filename=%s",
@@ -134,7 +187,6 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
         )
         raise HTTPException(status_code=400, detail="Unsupported file format")
 
-    # Temporarily save file
     temp_dir = "temp"
     os.makedirs(temp_dir, exist_ok=True)
     file_path = os.path.join(temp_dir, os.path.basename(file.filename))
@@ -198,7 +250,7 @@ def process_audio_file(file_path: str, job_id: str = "unknown"):
     logger.info("Audio processing started | job_id=%s | file=%s", job_id, file_path)
 
     try:
-        text = transcriber.transcribe(file_path, job_id=job_id)
+        text = get_transcriber().transcribe(file_path, job_id=job_id)
 
         if not text:
             logger.error("Audio processing failed: empty transcription | job_id=%s", job_id)

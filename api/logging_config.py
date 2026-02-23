@@ -2,9 +2,6 @@ import logging
 
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
-    """
-    Configure shared application logging once.
-    """
     logger = logging.getLogger("second_brain")
     normalized_level = (level or "INFO").upper()
 

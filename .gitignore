@@ -1,7 +1,10 @@
 .venv/
 .env
+audio_bridge/.env
 temp/
-tests/audio_file.mp3
+audio_bridge/spool/
+api/tests/*.mp3
+api/tests/*.wav
 __pycache__/
 *.pyc
 *.pyo
@@ -15,7 +18,4 @@ __pycache__/
 *.pyzwzwzw
 *.pyzwzwzwzw
 .DS_Store
-api/second_brain/*
-!api/second_brain/05_skills/
-api/second_brain/05_skills/*
-!api/second_brain/05_skills/second_brain_expert.md
+vault/

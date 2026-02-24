@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -46,26 +47,36 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        input_device = os.getenv("AUDIO_BRIDGE_INPUT_DEVICE", "").strip() or None
-        spool_dir_raw = os.getenv("AUDIO_BRIDGE_SPOOL_DIR", "audio_bridge/spool")
+        input_device = (
+            os.getenv("AUDIO_CAPTURE_INPUT_DEVICE")
+            or os.getenv("AUDIO_BRIDGE_INPUT_DEVICE", "")
+        ).strip() or None
+        spool_dir_raw = (
+            os.getenv("AUDIO_CAPTURE_SPOOL_DIR")
+            or os.getenv("AUDIO_BRIDGE_SPOOL_DIR", "audio_capture/spool")
+        )
         spool_dir = Path(spool_dir_raw).expanduser()
+        api_audio_url = (
+            os.getenv("AUDIO_CAPTURE_API_AUDIO_URL")
+            or os.getenv("AUDIO_BRIDGE_API_AUDIO_URL", "http://127.0.0.1:8787/audio")
+        )
 
         return cls(
-            api_audio_url=os.getenv("AUDIO_BRIDGE_API_AUDIO_URL", "http://localhost:8000/audio"),
-            sample_rate=_env_int("AUDIO_BRIDGE_SAMPLE_RATE", 16000),
-            frame_ms=_env_int("AUDIO_BRIDGE_FRAME_MS", 20),
-            vad_mode=_env_int("AUDIO_BRIDGE_VAD_MODE", 2),
-            start_trigger_ms=_env_int("AUDIO_BRIDGE_START_TRIGGER_MS", 240),
-            start_window_ms=_env_int("AUDIO_BRIDGE_START_WINDOW_MS", 400),
-            end_silence_ms=_env_int("AUDIO_BRIDGE_END_SILENCE_MS", 900),
-            pre_roll_ms=_env_int("AUDIO_BRIDGE_PRE_ROLL_MS", 300),
-            min_segment_ms=_env_int("AUDIO_BRIDGE_MIN_SEGMENT_MS", 1000),
-            max_segment_ms=_env_int("AUDIO_BRIDGE_MAX_SEGMENT_MS", 30000),
+            api_audio_url=api_audio_url,
+            sample_rate=_env_int("AUDIO_CAPTURE_SAMPLE_RATE", 0) or _env_int("AUDIO_BRIDGE_SAMPLE_RATE", 16000),
+            frame_ms=_env_int("AUDIO_CAPTURE_FRAME_MS", 0) or _env_int("AUDIO_BRIDGE_FRAME_MS", 20),
+            vad_mode=_env_int("AUDIO_CAPTURE_VAD_MODE", 2) if os.getenv("AUDIO_CAPTURE_VAD_MODE") else (_env_int("AUDIO_BRIDGE_VAD_MODE", 2)),
+            start_trigger_ms=_env_int("AUDIO_CAPTURE_START_TRIGGER_MS", 0) or _env_int("AUDIO_BRIDGE_START_TRIGGER_MS", 240),
+            start_window_ms=_env_int("AUDIO_CAPTURE_START_WINDOW_MS", 0) or _env_int("AUDIO_BRIDGE_START_WINDOW_MS", 400),
+            end_silence_ms=_env_int("AUDIO_CAPTURE_END_SILENCE_MS", 0) or _env_int("AUDIO_BRIDGE_END_SILENCE_MS", 900),
+            pre_roll_ms=_env_int("AUDIO_CAPTURE_PRE_ROLL_MS", 0) or _env_int("AUDIO_BRIDGE_PRE_ROLL_MS", 300),
+            min_segment_ms=_env_int("AUDIO_CAPTURE_MIN_SEGMENT_MS", 0) or _env_int("AUDIO_BRIDGE_MIN_SEGMENT_MS", 1000),
+            max_segment_ms=_env_int("AUDIO_CAPTURE_MAX_SEGMENT_MS", 0) or _env_int("AUDIO_BRIDGE_MAX_SEGMENT_MS", 30000),
             input_device=input_device,
             spool_dir=spool_dir,
-            request_timeout_s=_env_float("AUDIO_BRIDGE_REQUEST_TIMEOUT_S", 20.0),
-            max_upload_per_cycle=_env_int("AUDIO_BRIDGE_MAX_UPLOAD_PER_CYCLE", 10),
-            min_rms=_env_int("AUDIO_BRIDGE_MIN_RMS", 120),
+            request_timeout_s=_env_float("AUDIO_CAPTURE_REQUEST_TIMEOUT_S", 0) or _env_float("AUDIO_BRIDGE_REQUEST_TIMEOUT_S", 20.0),
+            max_upload_per_cycle=_env_int("AUDIO_CAPTURE_MAX_UPLOAD_PER_CYCLE", 0) or _env_int("AUDIO_BRIDGE_MAX_UPLOAD_PER_CYCLE", 10),
+            min_rms=_env_int("AUDIO_CAPTURE_MIN_RMS", 0) or _env_int("AUDIO_BRIDGE_MIN_RMS", 200),
         )
 
 
@@ -184,23 +195,36 @@ class SpoolUploader:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.settings.spool_dir.mkdir(parents=True, exist_ok=True)
-        self.logger = logging.getLogger("audio_bridge.uploader")
+        self.logger = logging.getLogger("audio_capture.uploader")
 
-    def save_segment(self, pcm_bytes: bytes, sample_rate: int) -> Path:
-        filename = f"{int(time.time() * 1000)}_{uuid4().hex}.wav"
+    def save_segment(
+        self,
+        pcm_bytes: bytes,
+        sample_rate: int,
+        duration_ms: int | None = None,
+        vad_reason: str | None = None,
+    ) -> Path:
+        seg_id = uuid4().hex
+        filename = f"{int(time.time() * 1000)}_{seg_id}.wav"
         path = self.settings.spool_dir / filename
         with wave.open(str(path), "wb") as wav_file:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
             wav_file.setframerate(sample_rate)
             wav_file.writeframes(pcm_bytes)
+        meta_path = path.with_suffix(".wav.meta.json")
+        if duration_ms is not None or vad_reason is not None:
+            meta_path.write_text(
+                json.dumps({"duration_ms": duration_ms, "vad_reason": vad_reason}),
+                encoding="utf-8",
+            )
         return path
 
     def flush_pending(self, max_files: int):
         files = sorted(self.settings.spool_dir.glob("*.wav"))[:max(1, max_files)]
         for path in files:
             if not self._upload(path):
-                break
+                    break
 
     def _upload(self, wav_path: Path) -> bool:
         if _wav_rms(wav_path) < self.settings.min_rms:
@@ -211,16 +235,44 @@ class SpoolUploader:
             )
             try:
                 wav_path.unlink()
+                meta = wav_path.with_suffix(".wav.meta.json")
+                if meta.exists():
+                    meta.unlink()
             except OSError:
                 self.logger.exception("Failed to remove silent file | file=%s", wav_path)
                 return False
             return True
 
+        meta_path = wav_path.with_suffix(".wav.meta.json")
+        meta_data = {}
+        if meta_path.exists():
+            try:
+                meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        segment_id = wav_path.stem
+        duration_ms = meta_data.get("duration_ms")
+        vad_reason = meta_data.get("vad_reason")
+        rms = _wav_rms(wav_path)
+
         try:
             with wav_path.open("rb") as f:
+                files = {"file": (wav_path.name, f, "audio/wav")}
+                data = {
+                    "segment_id": segment_id,
+                    "sample_rate": str(self.settings.sample_rate),
+                }
+                if duration_ms is not None:
+                    data["duration_ms"] = str(duration_ms)
+                if vad_reason is not None:
+                    data["vad_reason"] = str(vad_reason)
+                if rms is not None:
+                    data["rms"] = str(rms)
                 response = requests.post(
                     self.settings.api_audio_url,
-                    files={"file": (wav_path.name, f, "audio/wav")},
+                    files=files,
+                    data=data,
                     timeout=self.settings.request_timeout_s,
                 )
         except Exception:
@@ -238,6 +290,8 @@ class SpoolUploader:
 
         try:
             wav_path.unlink()
+            if meta_path.exists():
+                meta_path.unlink()
         except OSError:
             self.logger.exception("Failed to remove uploaded file | file=%s", wav_path)
             return False
@@ -251,11 +305,11 @@ def run():
     settings = Settings.from_env()
 
     logging.basicConfig(
-        level=os.getenv("AUDIO_BRIDGE_LOG_LEVEL", "INFO"),
+        level=os.getenv("AUDIO_CAPTURE_LOG_LEVEL") or os.getenv("AUDIO_BRIDGE_LOG_LEVEL", "INFO"),
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
-    logger = logging.getLogger("audio_bridge")
-    logger.info("Starting audio bridge | api_audio_url=%s", settings.api_audio_url)
+    logger = logging.getLogger("audio_capture")
+    logger.info("Starting audio capture | api_audio_url=%s", settings.api_audio_url)
 
     try:
         import sounddevice as sd
@@ -312,7 +366,12 @@ def run():
                             settings.min_rms,
                         )
                         continue
-                    saved = uploader.save_segment(segment.pcm_bytes, settings.sample_rate)
+                    saved = uploader.save_segment(
+                        segment.pcm_bytes,
+                        settings.sample_rate,
+                        duration_ms=segment.duration_ms,
+                        vad_reason=segment.reason,
+                    )
                     logger.info(
                         "Segment queued | file=%s | duration_ms=%d | reason=%s",
                         saved.name,
@@ -321,15 +380,20 @@ def run():
                     )
                     uploader.flush_pending(max_files=settings.max_upload_per_cycle)
     except KeyboardInterrupt:
-        logger.info("Stopping audio bridge by user request")
+        logger.info("Stopping audio capture by user request")
     except Exception:
         logger.exception("Audio bridge failed")
     finally:
         tail = segmenter.flush()
         if tail and _pcm_rms(tail.pcm_bytes) >= settings.min_rms:
-            uploader.save_segment(tail.pcm_bytes, settings.sample_rate)
+            uploader.save_segment(
+                tail.pcm_bytes,
+                settings.sample_rate,
+                duration_ms=tail.duration_ms,
+                vad_reason=tail.reason,
+            )
         uploader.flush_pending(max_files=10_000)
-        logger.info("Audio bridge stopped")
+        logger.info("Audio capture stopped")
 
 
 def _pcm_rms(pcm_bytes: bytes) -> int:

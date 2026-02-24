@@ -1,27 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Mind-Log: Obsidian Monitor",
-  "version": "1.0",
-  "description": "Monitoriza tu actividad y genera notas automáticas en Obsidian.",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "tabs",
-    "alarms",
-    "scripting",
-    "idle"
-  ],
-  "host_permissions": [
-    "http://localhost:8000/*"
-  ],
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
+  "name": "SecondBrain LifeLog",
+  "version": "0.1.0",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": ["http://127.0.0.1:8787/*", "http://localhost:8787/*"],
+  "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["scripts/scraper.js", "scripts/monitor.js", "scripts/content.js"]
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ]
 }

@@ -1,21 +1,36 @@
+# Python
 .venv/
-.env
-audio_bridge/.env
-temp/
-audio_bridge/spool/
-api/tests/*.mp3
-api/tests/*.wav
+venv/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.pyw
-*.pyz
-*.pywz
-*.pyzw
-*.pyzwz
-*.pyzwzw
-*.pyzwzwzw
-*.pyzwzwzwzw
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Environment & secrets (never commit)
+.env
+**/.env
+
+# Generated data
+data/
+
+# Mac
 .DS_Store
-vault/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs & temp
+*.log
+*.tmp
+spool/
+
+# Personal
+todo

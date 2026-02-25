@@ -13,7 +13,7 @@ class Transcript:
     language: str | None = None
 
 
-def transcribe_wav(path: Path) -> Transcript | None:
+def transcribe_audio(path: Path, mime_type: str | None = None) -> Transcript | None:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return None
@@ -30,11 +30,12 @@ def transcribe_wav(path: Path) -> Transcript | None:
     )
 
     try:
+        content_type = (mime_type or "").strip() or "application/octet-stream"
         with path.open("rb") as f:
             resp = requests.post(
                 url,
                 headers={"Authorization": f"Bearer {api_key}"},
-                files={"file": (path.name, f, "audio/wav")},
+                files={"file": (path.name, f, content_type)},
                 data={"model": model},
                 timeout=60,
             )
@@ -50,3 +51,8 @@ def transcribe_wav(path: Path) -> Transcript | None:
             "Transcription failed | path=%s | error=%s", path, e
         )
         return None
+
+
+def transcribe_wav(path: Path) -> Transcript | None:
+    # Backwards-compatible name: the audio capture pipeline uploads WAV.
+    return transcribe_audio(path, mime_type="audio/wav")

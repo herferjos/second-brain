@@ -2,6 +2,8 @@
 
 Captures microphone audio with VAD and sends `.wav` chunks to the LifeLog collector at `/audio`.
 
+This pipeline is now disabled by default via `AUDIO_CAPTURE_ENABLED=0` to avoid accidentally re-capturing system playback. Prefer the browser extension tab audio recorder when you only want browser output.
+
 ## Setup
 
 1. Install dependencies:

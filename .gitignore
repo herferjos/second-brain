@@ -17,6 +17,7 @@ build/
 
 # Generated data
 data/
+/vault/
 
 # Mac
 .DS_Store

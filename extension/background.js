@@ -1,5 +1,8 @@
 const COLLECTOR_URL = "http://127.0.0.1:8787/events";
 const QUEUE_KEY = "event_queue_v1";
+const REC_BADGE_TEXT = "REC";
+
+let recordingTabId = null;
 
 function baseEvent(type, meta) {
   return {
@@ -49,6 +52,65 @@ async function flushQueue(max = 50) {
   } catch (e) {}
 }
 
+async function ensureOffscreenDocument() {
+  if (!chrome.offscreen) return;
+
+  try {
+    const has = await chrome.offscreen.hasDocument();
+    if (has) return;
+  } catch (e) {}
+
+  try {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["USER_MEDIA"],
+      justification: "Record the current tab audio and upload to the local collector"
+    });
+  } catch (e) {}
+}
+
+async function setRecordingBadge(isRecording) {
+  try {
+    await chrome.action.setBadgeBackgroundColor({ color: "#d93025" });
+    await chrome.action.setBadgeText({ text: isRecording ? REC_BADGE_TEXT : "" });
+  } catch (e) {}
+}
+
+async function stopTabRecording() {
+  if (!recordingTabId) return;
+  recordingTabId = null;
+  await setRecordingBadge(false);
+  try {
+    chrome.runtime.sendMessage({ target: "offscreen", kind: "audio_stop" });
+  } catch (e) {}
+}
+
+async function startTabRecording(tab) {
+  if (!tab || !tab.id) return;
+
+  await ensureOffscreenDocument();
+
+  let streamId = null;
+  try {
+    streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+  } catch (e) {
+    streamId = null;
+  }
+  if (!streamId) return;
+
+  recordingTabId = tab.id;
+  await setRecordingBadge(true);
+  try {
+    chrome.runtime.sendMessage({
+      target: "offscreen",
+      kind: "audio_start",
+      streamId,
+      tabId: tab.id,
+      meta: { page_url: tab.url || "", page_title: tab.title || "" }
+    });
+  } catch (e) {}
+}
+
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (!msg || msg.kind !== "page_text") return;
   (async () => {
@@ -83,6 +145,23 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       title: tab.title || ""
     })
   ).then(() => flushQueue());
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (recordingTabId && tabId === recordingTabId) stopTabRecording();
+});
+
+chrome.action.onClicked.addListener((tab) => {
+  (async () => {
+    if (recordingTabId && tab && tab.id === recordingTabId) {
+      await stopTabRecording();
+      return;
+    }
+
+    // Only one tab at a time.
+    if (recordingTabId) await stopTabRecording();
+    await startTabRecording(tab);
+  })();
 });
 
 setInterval(() => flushQueue(), 3000);

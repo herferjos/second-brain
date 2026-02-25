@@ -15,6 +15,7 @@ Local HTTP service that receives events from the Chrome extension and audio capt
    ```
 
 3. Set `OPENAI_API_KEY` in `.env` for audio transcription.
+   Or use local transcription with `faster-whisper` (see env vars in `collector/.env.example`).
 
 4. Run:
    ```bash
@@ -29,9 +30,9 @@ Local HTTP service that receives events from the Chrome extension and audio capt
 
 - `GET /healthz` – health check
 - `POST /events` – append events (JSON body: single event or `{"events": [...]}`)
-- `POST /audio` – upload wav file (multipart: `file`, optional: `segment_id`, `duration_ms`, `vad_reason`, `rms`, `sample_rate`)
+- `POST /audio` – upload audio file (multipart: `file`, optional: `segment_id`, `duration_ms`, `vad_reason`, `rms`, `sample_rate`, `client_source`, `page_url`, `page_title`)
 
 ## Data layout
 
 - `data/events/YYYY-MM-DD.jsonl` – one event per line
-- `data/audio/YYYY-MM-DD/<segment_id>.wav` – audio segments
+- `data/audio/YYYY-MM-DD/<segment_id>.<ext>` – audio segments (e.g. `.wav`, `.webm`)

@@ -10,6 +10,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import requests
+import sounddevice as sd
+import webrtcvad
 from dotenv import load_dotenv
 
 
@@ -100,8 +102,6 @@ class VADSegmenter:
         min_segment_ms: int,
         max_segment_ms: int,
     ):
-        import webrtcvad
-
         if sample_rate not in {8000, 16000, 32000, 48000}:
             raise ValueError("sample_rate must be one of 8000,16000,32000,48000")
         if frame_ms not in {10, 20, 30}:
@@ -309,13 +309,15 @@ def run():
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
     logger = logging.getLogger("audio_capture")
-    logger.info("Starting audio capture | api_audio_url=%s", settings.api_audio_url)
-
-    try:
-        import sounddevice as sd
-    except Exception:
-        logger.exception("Failed to import sounddevice. Install audio_bridge requirements.")
+    enabled_raw = os.getenv("AUDIO_CAPTURE_ENABLED") or os.getenv("AUDIO_BRIDGE_ENABLED", "")
+    enabled = (enabled_raw or "").strip().lower() in {"1", "true", "yes", "on"}
+    if not enabled:
+        logger.info(
+            "Audio capture disabled (set AUDIO_CAPTURE_ENABLED=1 to enable). "
+            "Use the browser extension to send tab audio to the collector instead."
+        )
         return
+    logger.info("Starting audio capture | api_audio_url=%s", settings.api_audio_url)
 
     segmenter = VADSegmenter(
         sample_rate=settings.sample_rate,

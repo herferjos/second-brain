@@ -46,7 +46,7 @@ def _save_page_content(event: dict) -> None:
     content_dir.mkdir(parents=True, exist_ok=True)
 
     event_id = event.get("id", new_id())
-    content_path = content_dir / f"{ts[:19].replace(':', '-')}-{event_id}.txt"
+    content_path = content_dir / f"{ts[:19].replace(':', '-')}-{event_id}.md"
     content_path.write_text(text, encoding="utf-8")
 
     # Update event meta

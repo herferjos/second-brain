@@ -3,7 +3,11 @@
   "name": "SecondBrain LifeLog",
   "version": "0.1.0",
   "permissions": ["tabs", "storage", "activeTab", "tabCapture", "offscreen"],
-  "host_permissions": ["http://127.0.0.1:8787/*", "http://localhost:8787/*"],
+  "host_permissions": [
+    "<all_urls>",
+    "http://127.0.0.1:8787/*",
+    "http://localhost:8787/*"
+  ],
   "action": { "default_title": "Toggle tab audio recording" },
   "background": { "service_worker": "background.js" },
   "content_scripts": [

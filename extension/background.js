@@ -3,6 +3,7 @@ const QUEUE_KEY = "event_queue_v1";
 const REC_BADGE_TEXT = "REC";
 
 let recordingTabId = null;
+let isFlushing = false;
 
 function baseEvent(type, meta) {
   return {
@@ -38,18 +39,24 @@ async function enqueue(event) {
 }
 
 async function flushQueue(max = 50) {
-  const q = await getQueue();
-  if (q.length === 0) return;
-  const batch = q.slice(0, max);
+  if (isFlushing) return;
+  isFlushing = true;
   try {
-    const resp = await fetch(COLLECTOR_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ events: batch })
-    });
-    if (!resp.ok) throw new Error("collector_rejected");
-    await setQueue(q.slice(batch.length));
-  } catch (e) {}
+    const q = await getQueue();
+    if (q.length === 0) return;
+    const batch = q.slice(0, max);
+    try {
+      const resp = await fetch(COLLECTOR_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ events: batch })
+      });
+      if (!resp.ok) throw new Error("collector_rejected");
+      await setQueue(q.slice(batch.length));
+    } catch (e) {}
+  } finally {
+    isFlushing = false;
+  }
 }
 
 async function ensureOffscreenDocument() {
@@ -136,12 +143,26 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   })();
 });
 
+const lastPageView = new Map(); // tabId -> { url, ts }
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
+
+  const now = Date.now();
+  const last = lastPageView.get(tabId);
+  const currentUrl = tab.url || "";
+  
+  // Debounce duplicates: if same URL and < 2s, skip
+  if (last && last.url === currentUrl && (now - last.ts) < 2000) {
+    return;
+  }
+
+  lastPageView.set(tabId, { url: currentUrl, ts: now });
+
   enqueue(
     baseEvent("browser.page_view", {
       tab_id: tabId,
-      url: tab.url || "",
+      url: currentUrl,
       title: tab.title || ""
     })
   ).then(() => flushQueue());
@@ -149,6 +170,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (recordingTabId && tabId === recordingTabId) stopTabRecording();
+  lastPageView.delete(tabId);
 });
 
 chrome.action.onClicked.addListener((tab) => {

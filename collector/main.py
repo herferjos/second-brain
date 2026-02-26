@@ -3,6 +3,8 @@ import uvicorn
 from pathlib import Path
 import uuid
 
+from datetime import datetime
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,10 @@ from .util import new_id, utc_now_iso
 load_dotenv()
 data_dir = Path(os.getenv("COLLECTOR_DATA_DIR", "data")).expanduser()
 store = EventStore(data_dir=data_dir)
+
+# Simple in-memory cache for deduplication
+# url -> {len: int, ts: datetime}
+_last_saved_states = {}
 
 app = FastAPI()
 app.add_middleware(
@@ -55,20 +61,112 @@ def _save_page_content(event: dict) -> None:
     meta["text_preview"] = text[:500]
 
 
+def _save_frame_content(event: dict) -> None:
+    """For frame.capture events, save markdown to data/frame/ and update event meta."""
+    if event.get("type") != "frame.capture":
+        return
+    meta = event.get("meta")
+    if not isinstance(meta, dict):
+        return
+    text = meta.get("text")
+    if not isinstance(text, str):
+        return
+
+    ts = event.get("ts", utc_now_iso())
+    day = ts[:10]
+    frame_dir = data_dir / "frame" / day
+    frame_dir.mkdir(parents=True, exist_ok=True)
+
+    event_id = event.get("id", new_id())
+    safe_ts = ts[:19].replace(":", "-")
+    content_path = frame_dir / f"{safe_ts}-{event_id}.md"
+    content_path.write_text(text, encoding="utf-8")
+
+    if "text" in meta:
+        del meta["text"]
+    meta["text_path"] = str(content_path.relative_to(data_dir))
+    meta["text_preview"] = text[:500]
+
+
+def _should_process_event(event: dict) -> bool:
+    """Smart deduplication: returns False if event is noise/duplicate."""
+    if event.get("type") != "browser.page_text":
+        return True
+    
+    meta = event.get("meta", {})
+    url = meta.get("url")
+    text = meta.get("text", "")
+    reason = meta.get("reason", "")
+    ts_str = event.get("ts") or utc_now_iso()
+    
+    if not url or not text:
+        return True # Allow downstream to handle empty/error
+
+    try:
+        # Handle 'Z' suffix if present
+        if ts_str.endswith("Z"):
+            ts_str = ts_str[:-1] + "+00:00"
+        current_ts = datetime.fromisoformat(ts_str)
+    except Exception:
+        # If timestamp parsing fails, default to process
+        return True
+
+    last_state = _last_saved_states.get(url)
+    
+    # New URL or first time seeing it -> Keep
+    if not last_state:
+        _last_saved_states[url] = {"len": len(text), "ts": current_ts}
+        return True
+
+    # If significant time passed (e.g. > 2 mins), reset context -> Keep
+    delta = (current_ts - last_state["ts"]).total_seconds()
+    if delta > 120:
+        _last_saved_states[url] = {"len": len(text), "ts": current_ts}
+        return True
+
+    # If explicit user action -> Keep (high value)
+    if reason and str(reason).startswith("user_"):
+        _last_saved_states[url] = {"len": len(text), "ts": current_ts}
+        return True
+
+    # Check content length difference
+    # If change is small (< 50 chars) and frequent -> Drop (Noise)
+    len_diff = abs(len(text) - last_state["len"])
+    if len_diff < 50:
+        print(f"Skipping duplicate event for {url} (diff: {len_diff} chars)")
+        return False
+
+    # Significant change -> Keep and update state
+    _last_saved_states[url] = {"len": len(text), "ts": current_ts}
+    return True
+
+
 @app.post("/events")
 async def events(payload: dict):
     events_list = payload.get("events") if isinstance(payload, dict) else None
+    
+    # Handle batch of events
     if isinstance(events_list, list):
+        processed_count = 0
         for ev in events_list:
             if isinstance(ev, dict):
+                if not _should_process_event(ev):
+                    continue
                 _save_page_content(ev)
+                _save_frame_content(ev)
                 store.append(ev)
-        return {"ok": True, "count": len(events_list)}
+                processed_count += 1
+        return {"ok": True, "count": processed_count}
 
+    # Handle single event
     if isinstance(payload, dict):
-        _save_page_content(payload)
-        store.append(payload)
-        return {"ok": True, "count": 1}
+        if _should_process_event(payload):
+            _save_page_content(payload)
+            _save_frame_content(payload)
+            store.append(payload)
+            return {"ok": True, "count": 1}
+        else:
+            return {"ok": True, "count": 0, "status": "deduplicated"}
 
     return {"ok": False, "error": "invalid_payload"}
 

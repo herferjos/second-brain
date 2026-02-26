@@ -20,8 +20,10 @@ Chrome MV3 extension that logs page views, visible text snapshots, and (optional
 
 ## Tab Audio Recording (Browser Output -> Collector)
 
-This extension can record the active tab audio (e.g. meetings in the browser) and upload chunks to the collector `/audio` endpoint.
+This extension can record tab output audio plus user microphone and upload chunks to the collector `/audio` endpoint.
 
-- Click the extension icon to toggle recording for the current tab.
+- A floating in-page overlay appears automatically when output audio or microphone activity is detected.
+- Controls are tab-scoped and simple: `Start` and `Stop`.
+- The extension popup can still be opened manually from the toolbar icon.
 - While recording, the toolbar badge shows `REC`.
 - Audio is uploaded in small chunks (every ~15 seconds).

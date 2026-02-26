@@ -2,19 +2,34 @@
   "manifest_version": 3,
   "name": "SecondBrain LifeLog",
   "version": "0.1.0",
-  "permissions": ["tabs", "storage", "activeTab", "tabCapture", "offscreen"],
+  "permissions": [
+    "tabs",
+    "storage",
+    "activeTab",
+    "tabCapture",
+    "offscreen"
+  ],
   "host_permissions": [
     "<all_urls>",
     "http://127.0.0.1:8787/*",
     "http://localhost:8787/*"
   ],
-  "action": { "default_title": "Toggle tab audio recording" },
+  "action": {
+    "default_title": "Open audio capture controls",
+    "default_popup": "popup.html"
+  },
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page_audio_monitor.js"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

@@ -1,0 +1,16 @@
+{
+  "format": "anthropic",
+  "endpoint_url": "https://api.anthropic.com/v1/messages",
+  "model": "claude-3-5-sonnet-20241022",
+  "api_key_env": "ANTHROPIC_API_KEY",
+  "api_key_header": "x-api-key",
+  "auth_scheme": "raw",
+  "timeout_s": 60,
+  "steps": [],
+  "output": {
+    "mode": "first",
+    "steps": [],
+    "separator": "\n\n",
+    "label_format": "{id}:\n{value}"
+  }
+}

@@ -1,6 +1,11 @@
 {
-  "provider": "openai",
+  "format": "openai",
+  "endpoint_url": "https://api.openai.com/v1/chat/completions",
   "model": "gpt-4o-mini",
-  "base_url": "https://api.openai.com/v1",
-  "api_key_env": "OPENAI_API_KEY"
+  "api_key_env": "OPENAI_API_KEY",
+  "api_key_header": "Authorization",
+  "auth_scheme": "bearer",
+  "timeout_s": 60,
+  "steps": [],
+  "output": "text"
 }

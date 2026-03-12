@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,34 @@ def read_list_str(data: dict[str, Any], key: str, default: list[str]) -> list[st
     return default
 
 
+def read_dict_str(data: dict[str, Any], key: str) -> dict[str, str]:
+    value = data.get(key)
+    if not isinstance(value, dict):
+        return {}
+    out: dict[str, str] = {}
+    for raw_key, raw_value in value.items():
+        key_str = str(raw_key).strip()
+        value_str = str(raw_value).strip()
+        if key_str and value_str:
+            out[key_str] = value_str
+    return out
+
+
+def normalize_api_format(value: str | None, default: str = "openai") -> str:
+    raw = (value or default).strip().lower()
+    if raw in {"openai", "anthropic"}:
+        return raw
+    raise ValueError(
+        f"Unsupported API format: {raw!r}. "
+        "Expected one of: 'openai', 'anthropic'."
+    )
+
+
+def guess_mime_type(path: Path, fallback: str) -> str:
+    mime_type, _ = mimetypes.guess_type(str(path))
+    return mime_type or fallback
+
+
 def resolve_api_key(
     api_key: str | None,
     api_key_env: str | None,
@@ -90,3 +119,38 @@ def resolve_api_key(
         if value:
             return value
     return ""
+
+
+def build_http_headers(
+    *,
+    format_name: str,
+    api_key: str,
+    headers: dict[str, str] | None = None,
+    api_key_header: str | None = None,
+    auth_scheme: str | None = None,
+    anthropic_version: str | None = None,
+) -> dict[str, str]:
+    out = {"content-type": "application/json"}
+    if headers:
+        out.update(headers)
+
+    scheme = (auth_scheme or "").strip().lower()
+    header_name = (api_key_header or "").strip()
+
+    if api_key:
+        if header_name:
+            if scheme == "bearer":
+                out[header_name] = f"Bearer {api_key}"
+            elif scheme in {"raw", "plain"}:
+                out[header_name] = api_key
+            else:
+                out[header_name] = api_key
+        elif format_name == "anthropic":
+            out["x-api-key"] = api_key
+        else:
+            out["Authorization"] = f"Bearer {api_key}"
+
+    if format_name == "anthropic":
+        out["anthropic-version"] = anthropic_version or "2023-06-01"
+
+    return out

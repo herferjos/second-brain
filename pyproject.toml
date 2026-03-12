@@ -20,14 +20,6 @@ dependencies = [
   "mss",
   "opencv-python",
   "numpy",
-  "paddleocr",
-  "paddlex[ocr]",
-  "paddlepaddle",
-  "openai",
-  "google-genai",
-  "llama-cpp-python",
-  "llama-cpp-agent",
-  "faster-whisper",
 ]
 
 [project.optional-dependencies]
@@ -44,16 +36,8 @@ screen = [
   "mss",
   "opencv-python",
   "numpy",
-  "paddleocr",
-  "paddlex[ocr]",
-  "paddlepaddle",
 ]
 processor = [
-  "openai",
-  "google-genai",
-  "llama-cpp-python",
-  "llama-cpp-agent",
-  "faster-whisper",
 ]
 
 [project.scripts]

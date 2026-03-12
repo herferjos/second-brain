@@ -1,42 +1,47 @@
-"""OCR module with pluggable providers and JSON config."""
+"""HTTP-only OCR adapter around a generic vision endpoint."""
+
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 import settings
-from ai.config import load_json_config, read_bool, read_float, read_int, read_list_str, read_str
-from ai.steps import StepConfig, StepOutputConfig
+from ai.config import (
+    build_http_headers,
+    load_json_config,
+    normalize_api_format,
+    read_float,
+    read_int,
+    read_list_str,
+    read_str,
+    resolve_api_key,
+)
+from ai.http import chat_completion
+from ai.steps import (
+    StepConfig,
+    StepOutputConfig,
+    extract_json_path,
+    format_step_outputs,
+    render_prompt,
+)
 from .base import OcrEngine
-from .gemini import GeminiOcrEngine
-from .llama_cpp import LlamaCppOcrEngine
 from .none import NullOcr
-from .openai import OpenAIOcrEngine
-from .paddle import PaddleOcrEngine
 
 log = logging.getLogger("ai.ocr")
 
 
 @dataclass(frozen=True)
 class OcrConfig:
-    provider: str
+    format: str
+    endpoint_url: str
     model: str | None
-    languages: list[str]
-    base_url: str | None
     api_key: str | None
     api_key_env: str | None
+    api_key_header: str | None
+    auth_scheme: str
+    timeout_s: float
+    languages: list[str]
     steps: list[StepConfig]
     output: StepOutputConfig | None
-    model_path: str | None
-    context_length: int
-    n_gpu_layers: int
-    threads: int
-    batch_size: int
-    flash_attention: bool
-    use_mmap: bool
-    offload_kqv: bool
-    seed: int | None
-    chat_format: str | None
-    chat_template: str | None
-    clip_model_path: str | None
 
 
 _ocr_engine: OcrEngine | None = None
@@ -47,36 +52,20 @@ def _load_config() -> OcrConfig:
     path = settings.ocr_config_path()
     data = load_json_config(path, "OCR")
 
-    provider = (read_str(data, "provider", "paddle") or "paddle").lower()
+    format_name = normalize_api_format(read_str(data, "format", None) or "openai")
+    endpoint_url = read_str(data, "endpoint_url", None)
+    if not endpoint_url and format_name == "openai":
+        base_url = read_str(data, "base_url", "https://api.openai.com/v1") or "https://api.openai.com/v1"
+        endpoint_url = f"{base_url.rstrip('/')}/chat/completions"
+    if not endpoint_url:
+        raise ValueError("OCR config requires 'endpoint_url'")
+
     model = read_str(data, "model", None)
-    base_url = read_str(data, "base_url", None)
     api_key = read_str(data, "api_key", None)
     api_key_env = read_str(data, "api_key_env", None)
-
-    model_path = read_str(data, "model_path", None) or read_str(data, "modelPath", None)
-    context_length = read_int(data, "context_length", 4096)
-    n_gpu_layers = read_int(data, "n_gpu_layers", -1)
-    threads = read_int(data, "threads", 4)
-    batch_size = read_int(data, "batch_size", 512)
-    flash_attention = read_bool(data, "flash_attention", False)
-    use_mmap = read_bool(data, "use_mmap", True)
-    offload_kqv = read_bool(data, "offload_kqv", False)
-    seed = None
-    if "seed" in data and data.get("seed") not in (None, ""):
-        try:
-            seed = int(data.get("seed"))
-        except (TypeError, ValueError):
-            seed = None
-    chat_format = read_str(data, "chat_format", None)
-    chat_template = read_str(data, "chat_template", None)
-    chat_template_path = read_str(data, "chat_template_path", None)
-    if chat_template_path:
-        template_path = (path.parent / chat_template_path).expanduser().resolve()
-        if not template_path.exists():
-            raise FileNotFoundError(f"OCR chat_template_path not found: {template_path}")
-        chat_template = template_path.read_text(encoding="utf-8")
-
-    clip_model_path = read_str(data, "clip_model_path", None) or read_str(data, "mmproj_path", None)
+    api_key_header = read_str(data, "api_key_header", None)
+    auth_scheme = (read_str(data, "auth_scheme", "bearer") or "bearer").lower()
+    timeout_s = read_float(data, "timeout_s", 60.0)
 
     languages = read_list_str(data, "languages", ["en", "es"])
     if "languages" not in data:
@@ -93,16 +82,26 @@ def _load_config() -> OcrConfig:
         for idx, raw in enumerate(steps_raw):
             if not isinstance(raw, dict):
                 continue
-            step_id = read_str(raw, "id", None) or read_str(raw, "name", None) or f"step_{idx + 1}"
-            system_prompt = read_str(raw, "system_prompt", None) or read_str(raw, "system", None)
+            step_id = (
+                read_str(raw, "id", None)
+                or read_str(raw, "name", None)
+                or f"step_{idx + 1}"
+            )
+            system_prompt = read_str(raw, "system_prompt", None) or read_str(
+                raw, "system", None
+            )
             user_prompt = (
                 read_str(raw, "user_prompt", None)
                 or read_str(raw, "prompt", None)
                 or read_str(raw, "user", None)
             )
-            response = raw.get("response") if isinstance(raw.get("response"), dict) else {}
+            response = (
+                raw.get("response") if isinstance(raw.get("response"), dict) else {}
+            )
             response_type = read_str(response, "type", "text") or "text"
-            response_path = read_str(response, "path", None) or read_str(response, "field", None)
+            response_path = read_str(response, "path", None) or read_str(
+                response, "field", None
+            )
             temperature = None
             if raw.get("temperature") is not None:
                 temperature = read_float(raw, "temperature", 0.0)
@@ -129,7 +128,9 @@ def _load_config() -> OcrConfig:
         mode = (read_str(output_raw, "mode", "first") or "first").lower()
         output_steps = read_list_str(output_raw, "steps", [])
         separator = read_str(output_raw, "separator", "\n\n") or "\n\n"
-        label_format = read_str(output_raw, "label_format", "{id}:\n{value}") or "{id}:\n{value}"
+        label_format = (
+            read_str(output_raw, "label_format", "{id}:\n{value}") or "{id}:\n{value}"
+        )
         output_cfg = StepOutputConfig(
             mode=mode,
             steps=output_steps or None,
@@ -138,26 +139,17 @@ def _load_config() -> OcrConfig:
         )
 
     return OcrConfig(
-        provider=provider,
+        format=format_name,
+        endpoint_url=endpoint_url,
         model=model,
-        languages=languages,
-        base_url=base_url,
         api_key=api_key,
         api_key_env=api_key_env,
+        api_key_header=api_key_header,
+        auth_scheme=auth_scheme,
+        timeout_s=timeout_s,
+        languages=languages,
         steps=steps,
         output=output_cfg,
-        model_path=model_path,
-        context_length=context_length,
-        n_gpu_layers=n_gpu_layers,
-        threads=threads,
-        batch_size=batch_size,
-        flash_attention=flash_attention,
-        use_mmap=use_mmap,
-        offload_kqv=offload_kqv,
-        seed=seed,
-        chat_format=chat_format,
-        chat_template=chat_template,
-        clip_model_path=clip_model_path,
     )
 
 
@@ -168,62 +160,99 @@ def get_ocr_config() -> OcrConfig:
     return _ocr_config
 
 
+class HttpOcrEngine(OcrEngine):
+    def __init__(self, cfg: OcrConfig):
+        self._cfg = cfg
+
+    def _run_single_step(self, step: StepConfig, image_path: Path, context: dict[str, str]) -> str:
+        cfg = self._cfg
+        api_key = resolve_api_key(cfg.api_key, cfg.api_key_env, None)
+        if not api_key and cfg.format in {"openai", "anthropic"}:
+            raise ValueError("OCR config requires an API key via 'api_key' or 'api_key_env'")
+
+        headers = build_http_headers(
+            format_name=cfg.format,
+            api_key=api_key,
+            headers=None,
+            api_key_header=cfg.api_key_header,
+            auth_scheme=cfg.auth_scheme,
+        )
+
+        system_prompt = render_prompt(step.system_prompt, context).strip() if step.system_prompt else ""
+        user_prompt = render_prompt(step.user_prompt, context).strip() if step.user_prompt else ""
+
+        text = chat_completion(
+            endpoint_url=cfg.endpoint_url,
+            format_name=cfg.format,
+            model=cfg.model,
+            api_key=api_key,
+            headers=headers,
+            api_key_header=cfg.api_key_header,
+            auth_scheme=cfg.auth_scheme,
+            anthropic_version=None,
+            system=system_prompt,
+            user=user_prompt,
+            timeout_s=cfg.timeout_s,
+            temperature=step.temperature,
+            max_tokens=step.max_tokens,
+            image_path=image_path,
+            audio_path=None,
+            audio_mime_type=None,
+            output_model=None,
+        )
+
+        if (step.response_type or "").lower() != "json":
+            return text
+
+        try:
+            import json
+
+            payload = json.loads(text)
+        except Exception:
+            return text
+        extracted = extract_json_path(payload, step.response_path)
+        if extracted is None:
+            return text
+        if isinstance(extracted, str):
+            return extracted.strip()
+        import json as _json
+
+        return _json.dumps(extracted, ensure_ascii=False)
+
+    def extract_text(self, path: Path) -> str:
+        cfg = self._cfg
+        if not cfg.steps:
+            # Simple one-shot OCR with a generic instruction
+            dummy_step = StepConfig(
+                step_id="ocr",
+                system_prompt="You are an OCR engine. Extract plain text from the image.",
+                user_prompt="Read the text in the image and return it as plain text.",
+                response_type="text",
+                response_path=None,
+                temperature=None,
+                max_tokens=None,
+            )
+            return self._run_single_step(dummy_step, path, {})
+
+        results: list[tuple[str, str]] = []
+        context: dict[str, str] = {}
+        for step in cfg.steps:
+            text = self._run_single_step(step, path, context)
+            results.append((step.step_id, text))
+            context["prev"] = text
+            context[step.step_id] = text
+        return format_step_outputs(results, cfg.output)
+
+
 def get_ocr_engine() -> OcrEngine:
     global _ocr_engine
     if _ocr_engine is not None:
         return _ocr_engine
 
     cfg = get_ocr_config()
-    provider = cfg.provider
-
-    if provider == "none":
+    if cfg.format == "none":
         _ocr_engine = NullOcr()
-    elif provider == "paddle":
-        if cfg.steps:
-            log.warning("OCR steps are not supported for paddle; ignoring steps.")
-        _ocr_engine = PaddleOcrEngine(cfg.languages)
-    elif provider in {"openai", "lmstudio", "openai_compat", "local_openai"}:
-        model = cfg.model or "gpt-4o-mini"
-        _ocr_engine = OpenAIOcrEngine(
-            model=model,
-            api_key=cfg.api_key,
-            api_key_env=cfg.api_key_env,
-            base_url=cfg.base_url,
-            steps=cfg.steps,
-            output=cfg.output,
-        )
-    elif provider == "llama_cpp":
-        if not cfg.clip_model_path:
-            raise ValueError(
-                "OCR llama_cpp requires 'clip_model_path' (mmproj) for vision. "
-                "Set clip_model_path in ocr.json."
-            )
-        _ocr_engine = LlamaCppOcrEngine(
-            model_path=cfg.model_path or "",
-            context_length=cfg.context_length,
-            n_gpu_layers=cfg.n_gpu_layers,
-            threads=cfg.threads,
-            batch_size=cfg.batch_size,
-            flash_attention=cfg.flash_attention,
-            use_mmap=cfg.use_mmap,
-            offload_kqv=cfg.offload_kqv,
-            seed=cfg.seed,
-            chat_format=cfg.chat_format,
-            chat_template=cfg.chat_template,
-            clip_model_path=cfg.clip_model_path,
-            steps=cfg.steps,
-            output=cfg.output,
-        )
-    elif provider == "gemini":
-        model = cfg.model or "gemini-3.1-flash-lite-preview"
-        _ocr_engine = GeminiOcrEngine(
-            model=model,
-            api_key=cfg.api_key,
-            api_key_env=cfg.api_key_env,
-            steps=cfg.steps,
-            output=cfg.output,
-        )
     else:
-        raise ValueError(f"Unknown OCR provider: {provider}")
+        _ocr_engine = HttpOcrEngine(cfg)
 
     return _ocr_engine

@@ -31,16 +31,24 @@ Copy the example env file and set the config paths.
 cp .env.example .env
 ```
 
-Then create the JSON configs for each AI module and point the env vars to them:
+Then create the JSON configs for each AI module and point the env vars to them.
+The processor now talks to AI backends purely over HTTP using `format`-based
+configs (no embedded local runtimes):
 
 ```bash
 # Pick one example per module
-cp config/examples/llm.llama_cpp.json config/llm.json
-cp config/examples/stt.faster_whisper.json config/stt.json
-cp config/examples/ocr.paddle.json config/ocr.json
+cp config/examples/llm.openai.json config/llm.json
+cp config/examples/stt.openai.json config/stt.json
+cp config/examples/ocr.openai.json config/ocr.json
 ```
 
-Other examples are available under `config/examples/` (e.g., `ocr.llama_cpp.json`, `llm.openai.json`, `stt.gemini.json`).
+Other HTTP-based examples are available under `config/examples/`, such as:
+
+- llm.anthropic.json
+- llm.gemini-openai.json
+- llm.ollama-openai.json
+- stt.faster-whisper-api.json
+- ocr.anthropic.json
 
 The `.env` only contains the paths plus API keys:
 
@@ -52,7 +60,7 @@ OPENAI_API_KEY=
 GEMINI_API_KEY=
 ```
 
-### LLM config examples
+### LLM config
 
 Local GGUF (llama-cpp):
 
@@ -133,7 +141,7 @@ The processor prompts now live in `llm.json` (no built-in defaults):
 }
 ```
 
-### STT config examples
+### STT config
 
 Local Faster Whisper:
 
@@ -177,7 +185,7 @@ Disable STT:
 }
 ```
 
-### OCR config examples
+### OCR config
 
 Local Paddle OCR:
 

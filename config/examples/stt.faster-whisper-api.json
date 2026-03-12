@@ -1,8 +1,8 @@
 {
   "format": "openai",
-  "endpoint_url": "https://api.openai.com/v1/audio/transcriptions",
-  "model": "gpt-4o-mini-transcribe",
-  "api_key_env": "OPENAI_API_KEY",
+  "endpoint_url": "http://127.0.0.1:9000/v1/audio/transcriptions",
+  "model": "faster-whisper-local",
+  "api_key": "",
   "api_key_header": "Authorization",
   "auth_scheme": "bearer",
   "timeout_s": 60,

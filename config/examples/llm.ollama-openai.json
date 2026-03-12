@@ -1,0 +1,11 @@
+{
+  "format": "openai",
+  "endpoint_url": "http://127.0.0.1:11434/v1/chat/completions",
+  "model": "llama3.1",
+  "api_key": "",
+  "max_tokens": 4096,
+  "temperature": 0.3,
+  "max_retries": 3,
+  "concurrency": 1,
+  "processor_prompts": {}
+}

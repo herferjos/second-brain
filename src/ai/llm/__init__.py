@@ -1,44 +1,56 @@
-"""Pluggable LLM clients: local GGUF (llama-cpp-python), OpenAI, Gemini."""
+"""HTTP-only LLM client using a single endpoint and wire format."""
+
 import logging
-from . import base, gemini, llama_cpp, openai, retry
+from typing import Type
+
+from pydantic import BaseModel
+
+from ai import http
 from .config import get_llm_config
+from .retry import RetryingLLMClient
 
 log = logging.getLogger("processor.llm")
 
 
-def get_client(provider: str | None = None) -> base.LLMClient:
-    """Return LLM client for the given provider (from config if None), wrapped with retry."""
-    cfg = get_llm_config()
-    p = (provider or cfg.provider).lower()
+class _HttpLLMClient:
+    def generate(self, system: str, user: str, output_model: Type[BaseModel]) -> BaseModel:
+        cfg = get_llm_config()
+        from ai.config import resolve_api_key  # local import to avoid cycles
 
-    if p == "llama_cpp":
-        client = llama_cpp.LocalLlamaClient(cfg)
-    elif p == "openai":
-        model = cfg.model or "gpt-4o-mini"
-        client = openai.OpenAIClient(
-            model=model,
-            api_key=cfg.api_key,
-            api_key_env=cfg.api_key_env,
-            base_url=cfg.base_url,
-            max_tokens=cfg.max_tokens,
+        api_key = resolve_api_key(cfg.api_key, cfg.api_key_env, None)
+        if not api_key and cfg.format in {"openai", "anthropic"}:
+            raise ValueError("LLM config requires an API key via 'api_key' or 'api_key_env'")
+
+        text = http.chat_completion(
+            endpoint_url=cfg.endpoint_url,
+            format_name=cfg.format,
+            model=cfg.model,
+            api_key=api_key,
+            headers=cfg.headers,
+            api_key_header=cfg.api_key_header,
+            auth_scheme=cfg.auth_scheme,
+            anthropic_version=cfg.anthropic_version,
+            system=system,
+            user=user,
+            timeout_s=cfg.timeout_s,
             temperature=cfg.temperature,
-        )
-    elif p == "gemini":
-        model = cfg.model or "gemini-2.0-flash"
-        client = gemini.GeminiClient(
-            model=model,
-            api_key=cfg.api_key_env,
-            api_key_env=cfg.api_key_env,
             max_tokens=cfg.max_tokens,
-            temperature=cfg.temperature,
+            image_path=None,
+            audio_path=None,
+            audio_mime_type=None,
+            output_model=output_model,
         )
-    else:
-        raise ValueError(f"Unknown LLM provider: {p}")
-    return retry.RetryingLLMClient(client, max_retries=cfg.max_retries)
+        return http.parse_structured_output(text, output_model)
+
+
+def get_client(provider: str | None = None) -> _HttpLLMClient:
+    """Return a generic HTTP LLM client wrapped with retry (provider arg ignored)."""
+    cfg = get_llm_config()
+    client = _HttpLLMClient()
+    return RetryingLLMClient(client, max_retries=cfg.max_retries)
 
 
 __all__ = [
     "get_client",
     "get_llm_config",
-    "base",
 ]

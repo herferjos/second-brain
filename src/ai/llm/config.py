@@ -3,25 +3,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import settings
-from ai.config import load_json_config, read_bool, read_float, read_int, read_str
+from ai.config import (
+    load_json_config,
+    normalize_api_format,
+    read_dict_str,
+    read_float,
+    read_int,
+    read_str,
+)
 
 
 @dataclass(frozen=True)
 class LLMConfig:
-    provider: str
+    format: str
+    endpoint_url: str
     model: str | None
-    base_url: str | None
     api_key: str | None
     api_key_env: str | None
-    model_path: str | None
-    context_length: int
-    n_gpu_layers: int
-    threads: int
-    batch_size: int
-    flash_attention: bool
-    use_mmap: bool
-    offload_kqv: bool
-    seed: int | None
+    api_key_header: str | None
+    auth_scheme: str
+    headers: dict[str, str]
+    anthropic_version: str | None
+    timeout_s: float
     max_tokens: int
     temperature: float
     max_retries: int
@@ -36,31 +39,19 @@ def _load_config() -> LLMConfig:
     path = settings.llm_config_path()
     data = load_json_config(path, "LLM")
 
-    provider = (read_str(data, "provider", "llama_cpp") or "llama_cpp").lower()
+    format_name = normalize_api_format(read_str(data, "format", None) or "openai")
     model = read_str(data, "model", None)
-    base_url = read_str(data, "base_url", None)
     api_key = read_str(data, "api_key", None)
     api_key_env = read_str(data, "api_key_env", None)
+    api_key_header = read_str(data, "api_key_header", None)
+    auth_scheme = (read_str(data, "auth_scheme", "bearer") or "bearer").lower()
+    headers = read_dict_str(data, "headers")
+    anthropic_version = read_str(data, "anthropic_version", None)
+    timeout_s = read_float(data, "timeout_s", 60.0)
 
-    model_path = read_str(data, "model_path", None)
-    if model_path is None and "modelPath" in data:
-        model_path = read_str(data, "modelPath", None)
-
-    context_length = read_int(data, "context_length", 4096)
-    n_gpu_layers = read_int(data, "n_gpu_layers", -1)
-    threads = read_int(data, "threads", 4)
-    batch_size = read_int(data, "batch_size", 512)
-    flash_attention = read_bool(data, "flash_attention", False)
-    use_mmap = read_bool(data, "use_mmap", True)
-    offload_kqv = read_bool(data, "offload_kqv", False)
-
-    seed_value = data.get("seed")
-    seed = None
-    if seed_value is not None and seed_value != "":
-        try:
-            seed = int(seed_value)
-        except (TypeError, ValueError):
-            seed = None
+    endpoint_url = read_str(data, "endpoint_url", None)
+    if not endpoint_url:
+        raise ValueError("LLM config requires 'endpoint_url'")
 
     max_tokens = read_int(data, "max_tokens", 4096)
     temperature = read_float(data, "temperature", 0.3)
@@ -73,7 +64,11 @@ def _load_config() -> LLMConfig:
     if concurrency < 1:
         concurrency = 1
 
-    prompts_raw = data.get("processor_prompts") if isinstance(data.get("processor_prompts"), dict) else None
+    prompts_raw = (
+        data.get("processor_prompts")
+        if isinstance(data.get("processor_prompts"), dict)
+        else None
+    )
     if prompts_raw is None and isinstance(data.get("prompts"), dict):
         prompts_raw = data.get("prompts")
     processor_prompts: dict[str, dict[str, str]] = {}
@@ -88,20 +83,16 @@ def _load_config() -> LLMConfig:
             }
 
     return LLMConfig(
-        provider=provider,
+        format=format_name,
+        endpoint_url=endpoint_url,
         model=model,
-        base_url=base_url,
         api_key=api_key,
         api_key_env=api_key_env,
-        model_path=model_path,
-        context_length=context_length,
-        n_gpu_layers=n_gpu_layers,
-        threads=threads,
-        batch_size=batch_size,
-        flash_attention=flash_attention,
-        use_mmap=use_mmap,
-        offload_kqv=offload_kqv,
-        seed=seed,
+        api_key_header=api_key_header,
+        auth_scheme=auth_scheme,
+        headers=headers,
+        anthropic_version=anthropic_version,
+        timeout_s=timeout_s,
         max_tokens=max_tokens,
         temperature=temperature,
         max_retries=max_retries,

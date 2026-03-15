@@ -32,11 +32,7 @@ def health() -> dict[str, object]:
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: Annotated[str | None, Form()] = None,
-    model: Annotated[str | None, Form()] = None,
-    prompt: Annotated[str | None, Form()] = None,
 ) -> dict[str, object]:
-    del model, prompt
-
     if not ensure_speech_permission(prompt=PROMPT_PERMISSION):
         raise HTTPException(
             status_code=409,

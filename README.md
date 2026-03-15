@@ -16,24 +16,34 @@ Processing (transcription, OCR, etc.) is done by **external services**; the coll
 
 ## Requirements
 
-- **Python 3.11+**
-- **macOS** for screen capture and typical audio/ASR/OCR setups (other platforms may work for audio-only).
+- **Python 3.11+** (see `requires-python` in [pyproject.toml](pyproject.toml); [uv](https://docs.astral.sh/uv/) or system Python)
+- **macOS** for screen capture and typical audio/ASR/OCR setups (other platforms may work for audio-only)
 
 ## Installation
 
-From the project root:
+The project uses **uv** for environments and dependencies. From the project root:
 
 ```bash
-python -m venv .venv
+# Full install (runner + collector, audio, screen + dev tools).
+uv sync --all-extras
+
+# Or: minimal install for running tests only (project + pytest)
+uv sync
+```
+
+Activate the environment (optional; you can also use `uv run` without activating):
+
+```bash
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e .
 ```
 
-Optional extras (dependencies are split by component):
+Run the runner without activating:
 
 ```bash
-pip install -e ".[collector,audio,screen]"
+uv run exocort
 ```
+
+The lockfile `uv.lock` is the source of truth; after changing dependencies run `uv lock`.
 
 ## Configuration
 

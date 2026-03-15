@@ -10,7 +10,6 @@ requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
   "python-dotenv",
-  "pydantic",
   "requests",
   "fastapi",
   "python-multipart",
@@ -18,8 +17,6 @@ dependencies = [
   "sounddevice",
   "webrtcvad-wheels",
   "mss",
-  "opencv-python==4.10.0.84",
-  "numpy",
 ]
 
 [project.optional-dependencies]
@@ -34,8 +31,6 @@ audio = [
 ]
 screen = [
   "mss",
-  "opencv-python",
-  "numpy",
   "pywinctl",
 ]
 processor = [
@@ -45,19 +40,25 @@ test = [
   "pytest-cov",
 ]
 
-[project.scripts]
-exocort = "runner:main"
-exocort-collector = "collector.app:main"
-exocort-audio = "capture.audio:main"
-exocort-screen = "capture.screen:main"
-exocort-processor = "processor.cli:main"
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-cov",
+]
 
-[tool.setuptools]
-package-dir = {"" = "exocort"}
-py-modules = ["runner"]
+[tool.uv]
+managed = true
+default-groups = ["dev"]
+
+[project.scripts]
+exocort = "exocort.runner:main"
+exocort-collector = "exocort.collector.app:main"
+exocort-audio = "exocort.capture.audio:main"
+exocort-screen = "exocort.capture.screen:main"
+exocort-processor = "exocort.processor.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["exocort"]
+where = ["."]
 
 [tool.pytest.ini_options]
 pythonpath = ["exocort", "."]

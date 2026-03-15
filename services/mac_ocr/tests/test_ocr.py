@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from services.mac_ocr.src.ocr import OcrLine, ocr_image_path
+from src.ocr import OcrLine, ocr_image_path
 
 
 pytestmark = [pytest.mark.service, pytest.mark.unit, pytest.mark.ocr]
@@ -18,7 +18,7 @@ def test_ocr_image_path_builds_structured_text(
     image_path.write_bytes(b"fake-image")
 
     monkeypatch.setattr(
-        "services.mac_ocr.src.ocr._recognize_lines_from_path",
+        "src.ocr._recognize_lines_from_path",
         lambda path: [
             OcrLine(
                 text="hello world",

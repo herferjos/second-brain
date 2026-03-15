@@ -9,6 +9,7 @@ description = "Standalone macOS Vision OCR API for uploaded image files"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi",
+  "python-multipart",
   "uvicorn[standard]",
   "pyobjc-framework-ApplicationServices",
   "pyobjc-framework-Cocoa",
@@ -16,8 +17,11 @@ dependencies = [
   "pyobjc-framework-Vision",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.scripts]
-mac-ocr-service = "src.cli:main"
+mac-ocr-service = "src.app:main"
 
 [tool.setuptools]
 packages = ["src"]

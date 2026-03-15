@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 from starlette.datastructures import UploadFile
 
-from services.mac_ocr.src.app import process_image
+from src.app import process_image
 
 
 pytestmark = [pytest.mark.service, pytest.mark.unit, pytest.mark.ocr]
@@ -15,7 +15,7 @@ pytestmark = [pytest.mark.service, pytest.mark.unit, pytest.mark.ocr]
 
 def test_process_image_returns_ocr_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "services.mac_ocr.src.app.ocr_image_path",
+        "src.app.ocr_image_path",
         lambda path: {
             "lines": [],
             "rows": [],
@@ -34,7 +34,7 @@ def test_process_image_returns_ocr_payload(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_process_image_wraps_missing_file(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "services.mac_ocr.src.app.ocr_image_path",
+        "src.app.ocr_image_path",
         lambda path: (_ for _ in ()).throw(FileNotFoundError("missing")),
     )
     upload = UploadFile(filename="screen.png", file=io.BytesIO(b"fake-image"))

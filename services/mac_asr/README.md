@@ -1,51 +1,23 @@
 # Mac ASR Service
 
-Native macOS speech-to-text HTTP service. It receives uploaded audio files, sends them through the system Speech framework, and returns the transcription as JSON.
+One job: **transcribe audio**. HTTP API that accepts an audio file and returns the transcription using macOS Speech framework.
 
-## Endpoints
+## Endpoint
 
-- `GET /health`
-- `GET /status`
-- `POST /v1/audio/transcriptions`
+- **POST /v1/audio/transcriptions** — `file` (required), optional `language` (e.g. `es-ES`). Returns `{ "text", "locale" }`.
+- **GET /health** — readiness and locale.
 
-The transcription endpoint follows the common multipart shape:
-
-- `file`: audio file
-- `language`: optional locale override, for example `es-ES`
-- `model`: accepted for compatibility but ignored
-- `prompt`: accepted for compatibility but ignored
-
-Response:
-
-```json
-{
-  "text": "hello world",
-  "locale": "en",
-  "is_final": true
-}
-```
-
-## Permissions
-
-macOS Speech Recognition permission is required. If you run it from Cursor or Terminal, allow that app in **System Settings -> Privacy & Security -> Speech Recognition**.
-
-## Usage
+## Run
 
 From `services/mac_asr`:
 
 ```bash
 uv sync
-uv run mac-asr-service serve
+uv run mac-asr-service
 ```
 
-Transcribe one local file:
+Config: copy `.env.example` to `.env` and adjust. Keys: `MAC_ASR_HOST`, `MAC_ASR_PORT`, `MAC_ASR_LOCALE`, `MAC_ASR_TRANSCRIPTION_TIMEOUT_S`, `MAC_ASR_PROMPT_PERMISSION`, `MAC_ASR_LOG_LEVEL`.
 
-```bash
-uv run mac-asr-service transcribe-file /path/to/audio.wav --language es-ES
-```
+## Permissions
 
-Defaults:
-
-- host: `127.0.0.1`
-- port: `9092`
-- locale: `es-ES`
+macOS Speech Recognition must be allowed (e.g. **System Settings → Privacy & Security → Speech Recognition** for Terminal/Cursor).

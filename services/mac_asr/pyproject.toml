@@ -5,21 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "exocort-mac-asr-service"
 version = "0.1.0"
-description = "Standalone macOS speech-to-text API for uploaded audio files"
+description = "macOS speech-to-text API: one endpoint that transcribes uploaded audio"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi",
+  "python-multipart",
   "uvicorn[standard]",
-  "sounddevice",
-  "webrtcvad-wheels",
   "pyobjc-core",
-  "pyobjc-framework-AVFoundation",
   "pyobjc-framework-Cocoa",
   "pyobjc-framework-Speech",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.scripts]
-mac-asr-service = "src.cli:main"
+mac-asr-service = "src.app:main"
 
 [tool.setuptools]
 packages = ["src"]

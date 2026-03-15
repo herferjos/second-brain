@@ -15,6 +15,7 @@ from .models import CaptureRegion, CapturedScreen, ScreenSettings
 
 
 def capture_screen(prompt_permission: bool = False) -> CapturedScreen:
+    """Capture one frame. content_hash is SHA-1 of PNG bytes (pixel-level identity)."""
     with mss.mss() as sct:
         monitors = sct.monitors
         monitor = monitors[1] if len(monitors) > 1 else monitors[0]
@@ -45,10 +46,24 @@ def capture_screen(prompt_permission: bool = False) -> CapturedScreen:
 
 
 class ScreenCapture:
+    """Dedup: consecutive same hash skipped; same hash within dedup_window_s also skipped (no upload)."""
+
     def __init__(self, cfg: ScreenSettings):
         self.cfg = cfg
         self.logger = logging.getLogger("screen_capture")
         self.last_screen_hash: str | None = None
+        self._recent_sent: dict[str, float] = {}
+
+    def _recent_sent_prune(self) -> None:
+        now = time.monotonic()
+        window = self.cfg.dedup_window_s
+        expired = [h for h, t in self._recent_sent.items() if (now - t) > window]
+        for h in expired:
+            del self._recent_sent[h]
+
+    def _already_sent_recently(self, content_hash: str) -> bool:
+        self._recent_sent_prune()
+        return content_hash in self._recent_sent
 
     def run(self) -> None:
         if not self.cfg.enabled:
@@ -60,8 +75,9 @@ class ScreenCapture:
         interval = 1.0 / self.cfg.fps
 
         self.logger.info(
-            "Starting screen capture | fps=%.2f",
+            "Starting screen capture | fps=%.2f | dedup_window_s=%.0f",
             self.cfg.fps,
+            self.cfg.dedup_window_s,
         )
 
         while True:
@@ -75,10 +91,14 @@ class ScreenCapture:
             if screen.content_hash == self.last_screen_hash:
                 self._sleep_remaining(interval, started)
                 continue
+            if self._already_sent_recently(screen.content_hash):
+                self._sleep_remaining(interval, started)
+                continue
 
             self.last_screen_hash = screen.content_hash
 
             self._upload_screen(screen)
+            self._recent_sent[screen.content_hash] = time.monotonic()
             self._sleep_remaining(interval, started)
 
     def _upload_screen(self, screen: CapturedScreen) -> None:

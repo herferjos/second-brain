@@ -12,6 +12,7 @@ class ScreenSettings:
     request_timeout_s: float
     screen_url: str
     prompt_permission: bool
+    dedup_window_s: float
 
     @classmethod
     def from_env(cls) -> "ScreenSettings":
@@ -21,6 +22,7 @@ class ScreenSettings:
             request_timeout_s=settings.screen_capture_request_timeout_s(),
             screen_url=settings.collector_screen_url(),
             prompt_permission=settings.screen_capture_prompt_permission(),
+            dedup_window_s=settings.screen_capture_dedup_window_s(),
         )
 
 

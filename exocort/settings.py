@@ -197,6 +197,11 @@ def screen_capture_prompt_permission() -> bool:
     return _bool("SCREEN_CAPTURE_PROMPT_PERMISSION", False)
 
 
+def screen_capture_dedup_window_s() -> float:
+    """Don't re-upload the same screen hash within this many seconds."""
+    return max(60.0, _float("SCREEN_CAPTURE_DEDUP_WINDOW_S", 300.0))
+
+
 # -----------------------------------------------------------------------------
 # Collector
 # -----------------------------------------------------------------------------

@@ -10,12 +10,14 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, File, Form, UploadFile
 
 from .config import CollectorConfig
+from .dedup import get_dedup
 from .forward import forward_upload
-from .vault import save_to_tmp, remove_tmp, write_vault_record
+from .vault import save_to_tmp, remove_tmp, write_vault_record, VaultIndex
 
 log = logging.getLogger("collector")
 
 _config: CollectorConfig | None = None
+_vault_index: VaultIndex | None = None
 
 
 def get_config() -> CollectorConfig:
@@ -25,9 +27,18 @@ def get_config() -> CollectorConfig:
     return _config
 
 
+def get_vault_index() -> VaultIndex:
+    global _vault_index
+    if _vault_index is None:
+        _vault_index = VaultIndex(days_back=2)
+        log.info("Vault index loaded | keys=%d", len(_vault_index))
+    return _vault_index
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     get_config()
+    get_vault_index()
     yield
     pass
 
@@ -67,6 +78,17 @@ async def api_audio(
     filename = file.filename or "audio.wav"
     content_type = file.content_type or "audio/wav"
 
+    dedup = get_dedup()
+    vault_index = get_vault_index()
+    audio_key = f"audio:{segment_id}"
+    if dedup.is_duplicate(audio_key):
+        log.debug("Audio duplicate skipped (recent) | segment_id=%s", segment_id)
+        return {"ok": True, "forwarded": 0, "duplicate": True}
+    if vault_index.contains(audio_key):
+        log.debug("Audio duplicate skipped (vault) | segment_id=%s", segment_id)
+        return {"ok": True, "forwarded": 0, "duplicate": True}
+    dedup.mark_seen(audio_key)
+
     if not config.audio:
         return {"ok": True, "forwarded": 0, "message": "No audio endpoints configured"}
 
@@ -84,6 +106,7 @@ async def api_audio(
         vault_path = write_vault_record(
             date, timestamp_iso, "audio", segment_id, form_data, results
         )
+        vault_index.add(audio_key)
         log.info("Vault wrote | path=%s", vault_path)
         return {"ok": True, "forwarded": len(config.audio), "results": [{"url": r["url"], "ok": r["ok"], "status": r["status"]} for r in results]}
     finally:
@@ -120,6 +143,17 @@ async def api_screen(
     filename = file.filename or "screen.png"
     content_type = file.content_type or "image/png"
 
+    dedup = get_dedup()
+    vault_index = get_vault_index()
+    screen_key = f"screen:{hash}" if hash else f"screen:id:{screen_id}"
+    if dedup.is_duplicate(screen_key):
+        log.debug("Screen duplicate skipped (recent) | hash=%s", hash or screen_id)
+        return {"ok": True, "forwarded": 0, "duplicate": True}
+    if vault_index.contains(screen_key):
+        log.debug("Screen duplicate skipped (vault) | hash=%s", hash or screen_id)
+        return {"ok": True, "forwarded": 0, "duplicate": True}
+    dedup.mark_seen(screen_key)
+
     if not config.screen:
         return {"ok": True, "forwarded": 0, "message": "No screen endpoints configured"}
 
@@ -137,6 +171,7 @@ async def api_screen(
         vault_path = write_vault_record(
             date, timestamp_iso, "screen", screen_id, form_data, results
         )
+        vault_index.add(screen_key)
         log.info("Vault wrote | path=%s", vault_path)
         return {"ok": True, "forwarded": len(config.screen), "results": [{"url": r["url"], "ok": r["ok"], "status": r["status"]} for r in results]}
     finally:

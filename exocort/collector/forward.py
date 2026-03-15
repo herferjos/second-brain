@@ -17,11 +17,10 @@ def forward_upload(
     file_content: bytes,
     filename: str,
     content_type: str,
-    form_data: dict[str, str],
 ) -> tuple[bool, int, str]:
-    """Send file + form to one endpoint. Returns (ok, status_code, full_body)."""
+    """Send file to one endpoint. Returns (ok, status_code, full_body)."""
     files = {"file": (filename, file_content, content_type)}
-    data = form_data if endpoint.forward_form else {}
+    data: dict[str, str] = {}
     headers = dict(endpoint.headers)
 
     try:

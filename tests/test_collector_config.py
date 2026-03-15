@@ -29,7 +29,6 @@ def test_load_from_path(tmp_path: Path) -> None:
             "url": "http://localhost:9092/transcribe",
             "method": "POST",
             "timeout": 15,
-            "forward_form": true,
             "headers": {"X-Custom": "yes"}
           }
         ]
@@ -45,19 +44,16 @@ def test_load_from_path(tmp_path: Path) -> None:
     assert cfg.audio[0].url == "http://localhost:9092/transcribe"
     assert cfg.audio[0].method == "POST"
     assert cfg.audio[0].timeout == 15.0
-    assert cfg.audio[0].forward_form is True
     assert cfg.audio[0].headers == {"X-Custom": "yes"}
 
     assert len(cfg.screen) == 1
     assert cfg.screen[0].url == "http://localhost:9091/ocr"
     assert cfg.screen[0].method == "POST"
     assert cfg.screen[0].timeout == 10.0
-    assert cfg.screen[0].forward_form is True
 
 
 def test_endpoint_config_defaults() -> None:
     ep = EndpointConfig(url="http://x/y")
     assert ep.method == "POST"
     assert ep.timeout == 30.0
-    assert ep.forward_form is True
     assert ep.headers == {}

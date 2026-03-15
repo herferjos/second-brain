@@ -72,7 +72,7 @@ cp config/config.json.example config/config.json
 # Edit config/config.json: set audio.endpoints[] and screen.endpoints[] to your ASR/OCR etc. URLs
 ```
 
-See `config/config.json.example` for the structure (URL, method, timeout, `forward_form`, headers).
+See `config/config.json.example` for the structure (URL, method, timeout, headers).
 
 ## Usage
 

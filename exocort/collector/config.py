@@ -13,7 +13,6 @@ class EndpointConfig:
     url: str
     method: str = "POST"
     timeout: float = 30.0
-    forward_form: bool = True
     headers: dict[str, str] = field(default_factory=dict)
 
 
@@ -44,7 +43,6 @@ class CollectorConfig:
                         url=str(ep["url"]),
                         method=str(ep.get("method", "POST")).upper(),
                         timeout=float(ep.get("timeout", 30)),
-                        forward_form=bool(ep.get("forward_form", True)),
                         headers=dict(ep.get("headers") or {}),
                     )
                 )

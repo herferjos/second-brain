@@ -98,9 +98,7 @@ async def api_audio(
     try:
         results = []
         for ep in config.audio:
-            ok, status, resp_body = forward_upload(
-                ep, body, filename, content_type, form_data
-            )
+            ok, status, resp_body = forward_upload(ep, body, filename, content_type)
             results.append({"url": ep.url, "ok": ok, "status": status, "body": resp_body})
 
         vault_path = write_vault_record(
@@ -163,9 +161,7 @@ async def api_screen(
     try:
         results = []
         for ep in config.screen:
-            ok, status, resp_body = forward_upload(
-                ep, body, filename, content_type, form_data
-            )
+            ok, status, resp_body = forward_upload(ep, body, filename, content_type)
             results.append({"url": ep.url, "ok": ok, "status": status, "body": resp_body})
 
         vault_path = write_vault_record(

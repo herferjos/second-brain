@@ -58,4 +58,4 @@ Env: per-system temp dirs under `tmp/` — `AUDIO_CAPTURE_SPOOL_DIR`, `SCREEN_CA
 ## Config
 
 - **Capture agents**: `.env` (or env) — `COLLECTOR_AUDIO_URL`, `COLLECTOR_SCREEN_URL` (collector-defined upload endpoints), plus capture-specific vars.
-- **Collector**: `config.json` — `audio.endpoints[]`, `screen.endpoints[]` (url, method, timeout, forward_form, headers).
+- **Collector**: `config.json` — `audio.endpoints[]`, `screen.endpoints[]` (url, method, timeout, headers).

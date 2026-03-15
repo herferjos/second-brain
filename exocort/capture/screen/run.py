@@ -1,0 +1,21 @@
+from __future__ import annotations
+
+import logging
+
+from exocort import settings
+
+from .capture import ScreenCapture
+from .models import ScreenSettings
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=settings.log_level(),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+    cfg = ScreenSettings.from_env()
+    ScreenCapture(cfg).run()
+
+
+if __name__ == "__main__":
+    main()

@@ -11,15 +11,8 @@ __pycache__/
 dist/
 build/
 
-# Environment & secrets (never commit)
+# Environment & secrets
 .env
-
-# Generated data
-data/
-/vault/
-**/outputs/
-ocr/models/
-screen_capture/
 
 # Mac
 .DS_Store
@@ -30,11 +23,9 @@ screen_capture/
 *.swp
 *.swo
 
-# Logs & temp
-*.log
-*.tmp
-data/spool/
-tmp/*
+# Collector persistence
+tmp/
+vault/
 
 # Personal
 todo

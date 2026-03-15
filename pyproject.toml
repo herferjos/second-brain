@@ -54,7 +54,7 @@ exocort-processor = "processor.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "exocort"}
-py-modules = ["settings", "runner"]
+py-modules = ["runner"]
 
 [tool.setuptools.packages.find]
 where = ["exocort"]

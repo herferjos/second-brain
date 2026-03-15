@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+import logging
+
+from exocort import settings
+
+from .agent import AudioCaptureAgent
+from .models import Settings
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=settings.log_level(),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+    AudioCaptureAgent(Settings.from_env()).run()
+
+
+if __name__ == "__main__":
+    main()

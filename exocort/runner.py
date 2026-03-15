@@ -60,7 +60,7 @@ def main() -> None:
     if audio_enabled:
         procs.append(
             subprocess.Popen(
-                [sys.executable, "-m", "exocort.capture.audio.run"],
+                [sys.executable, "-m", "exocort.capture.audio"],
                 cwd=str(_project_root),
                 env=env,
                 stdout=None,
@@ -71,7 +71,7 @@ def main() -> None:
     if screen_enabled:
         procs.append(
             subprocess.Popen(
-                [sys.executable, "-m", "exocort.capture.screen.run"],
+                [sys.executable, "-m", "exocort.capture.screen"],
                 cwd=str(_project_root),
                 env=env,
                 stdout=None,

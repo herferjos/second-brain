@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 from exocort import settings
 
@@ -17,4 +18,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)

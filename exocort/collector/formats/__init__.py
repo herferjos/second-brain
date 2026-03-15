@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from .base import BuiltRequest, FormatAdapter, ParsedResponse
 from .default import DefaultAdapter
+from .gemini import GeminiAdapter
 from .openai import OpenAIAdapter
 
 if TYPE_CHECKING:
@@ -14,11 +15,12 @@ if TYPE_CHECKING:
 _REGISTRY: dict[str, FormatAdapter] = {
     "default": DefaultAdapter(),
     "openai": OpenAIAdapter(),
+    "gemini": GeminiAdapter(),
 }
 
 
 def get_adapter(format_code: str) -> FormatAdapter:
-    """Return the adapter for the given format code (e.g. 'default', 'openai')."""
+    """Return the adapter for the given format code (e.g. 'default', 'openai', 'gemini')."""
     code = (format_code or "default").strip().lower()
     adapter = _REGISTRY.get(code)
     if adapter is None:

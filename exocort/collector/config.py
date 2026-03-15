@@ -36,6 +36,13 @@ class CollectorConfig:
 
         data = json.loads(path.read_text(encoding="utf-8"))
 
+        def expand_env(s: str) -> str:
+            if "${" not in s:
+                return s
+            for k, v in os.environ.items():
+                s = s.replace(f"${{{k}}}", v)
+            return s
+
         def parse_one(key: str) -> EndpointConfig | None:
             block = data.get(key) or {}
             if not isinstance(block, dict) or not block.get("url"):
@@ -45,14 +52,20 @@ class CollectorConfig:
                 body_dict = {str(k): str(v) for k, v in body_raw.items()}
             else:
                 body_dict = {}
+            raw_headers = block.get("headers") or {}
+            headers = {str(k): expand_env(str(v)) for k, v in raw_headers.items()}
             return EndpointConfig(
                 url=str(block["url"]),
                 method=str(block.get("method", "POST")).upper(),
                 timeout=float(block.get("timeout", 30)),
-                headers=dict(block.get("headers") or {}),
+                headers=headers,
                 format=str(block.get("format", "default")).strip() or "default",
                 body=body_dict,
-                response_path=(str(block["response_path"]).strip() or None) if block.get("response_path") else None,
+                response_path=(
+                    (str(block["response_path"]).strip() or None)
+                    if block.get("response_path")
+                    else None
+                ),
             )
 
         return cls(

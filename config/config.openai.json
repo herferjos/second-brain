@@ -3,21 +3,27 @@
     "url": "https://api.openai.com/v1/audio/transcriptions",
     "method": "POST",
     "timeout": 60,
-    "headers": {},
+    "headers": {
+      "Authorization": "Bearer ${OPENAI_API_KEY}"
+    },
     "format": "openai",
     "body": {
       "model": "whisper-1",
-      "language": "en"
+      "language": "en",
+      "prompt": "Transcribe the attached audio."
     }
   },
   "screen": {
     "url": "https://api.openai.com/v1/chat/completions",
     "method": "POST",
     "timeout": 60,
-    "headers": {},
+    "headers": {
+      "Authorization": "Bearer ${OPENAI_API_KEY}"
+    },
     "format": "openai",
     "body": {
-      "model": "gpt-4o-mini"
+      "model": "gpt-4o-mini",
+      "prompt": "Describe or transcribe everything visible in the attached image."
     }
   }
 }

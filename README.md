@@ -83,7 +83,7 @@ Per-endpoint fields:
 | `url` | HTTP endpoint URL |
 | `method`, `timeout`, `headers` | Optional; same as before |
 | `format` | Adapter code: `default` (multipart file only) or `openai` (OpenAI-style STT/OCR) |
-| `body` | Extra form/JSON keys sent with the request (e.g. `{"model": "whisper-1"}`) |
+| `body` | Extra form/JSON keys sent with the request (e.g. `model`, `prompt`). The file is attached separately; use `prompt` to instruct transcription/description. |
 
 Example: one endpoint per type (e.g. OpenAI for audio, local for screen):
 

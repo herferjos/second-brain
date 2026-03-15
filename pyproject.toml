@@ -36,6 +36,7 @@ screen = [
   "mss",
   "opencv-python",
   "numpy",
+  "pywinctl",
 ]
 processor = [
 ]
@@ -52,14 +53,14 @@ exocort-screen = "capture.screen:main"
 exocort-processor = "processor.cli:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "exocort"}
 py-modules = ["settings", "runner"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["exocort"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "."]
+pythonpath = ["exocort", "."]
 testpaths = ["tests", "services"]
 markers = [
   "unit: fast unit tests",

@@ -24,7 +24,7 @@ Response JSON:
 { "text": "transcribed text here" }
 ```
 
-This matches what the main app expects when `stt.json` uses:
+This matches what the main app expects when the engine config `stt` block uses:
 
 - `"format": "openai"`
 - `"endpoint_url": "http://127.0.0.1:9000/v1/audio/transcriptions"`

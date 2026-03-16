@@ -26,6 +26,9 @@ build/
 # Collector persistence
 tmp/
 vault/
+.logs/
 
 # Personal
 todo
+
+.pytest_cache/

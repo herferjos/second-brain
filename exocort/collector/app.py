@@ -100,6 +100,23 @@ async def api_audio(
         ok, status, resp_body, extra = forward_upload(
             ep, body, filename, content_type, stream_type="audio"
         )
+
+        # Only persist successful audio responses to the vault. Errors like
+        # "Internal Server Error" (common when no speech is detected) are
+        # returned to the caller but skipped from storage.
+        if not ok:
+            log.warning(
+                "Audio forward failed; skipping vault write | segment_id=%s | status=%d",
+                segment_id,
+                status,
+            )
+            return {
+                "ok": False,
+                "forwarded": 0,
+                "status": status,
+                "error": "audio_forward_failed",
+            }
+
         results = [
             normalize_vault_response(
                 ep.url, ep.format, ok, status, resp_body, extra.get("parsed_text")
@@ -110,7 +127,17 @@ async def api_audio(
         )
         vault_index.add(audio_key)
         log.info("Vault wrote | path=%s", vault_path)
-        return {"ok": True, "forwarded": 1, "results": [{"url": results[0]["url"], "ok": results[0]["ok"], "status": results[0]["status"]}]}
+        return {
+            "ok": True,
+            "forwarded": 1,
+            "results": [
+                {
+                    "url": results[0]["url"],
+                    "ok": results[0]["ok"],
+                    "status": results[0]["status"],
+                }
+            ],
+        }
     finally:
         remove_tmp(tmp_path)
 

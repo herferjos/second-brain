@@ -110,4 +110,4 @@ def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Trans
     if state["error"] and not state["text"]:
         raise RuntimeError(state["error"])
 
-    return Transcription(text=str(state["text"]).strip(), locale=resolved_locale or "auto")
+    return Transcription(text=str(state["text"]).strip(), locale=resolved_locale)

@@ -22,18 +22,11 @@ log = logging.getLogger("mac_asr")
 app = FastAPI(title="Mac ASR", version="0.1.0")
 
 
-def _normalize_locale(raw_locale: str | None) -> str:
-    value = (raw_locale or "").strip()
-    if value.lower() in {"", "auto", "autodetect", "detect", "default"}:
-        return ""
-    return value
-
-
 @app.get("/health")
 def health() -> dict[str, object]:
     return {
         "ok": True,
-        "locale": _normalize_locale(LOCALE) or "auto",
+        "locale": (LOCALE or "").strip() or None,
         "speech_permission": ensure_speech_permission(prompt=False),
     }
 
@@ -54,8 +47,7 @@ async def transcribe_audio(
         path = Path(tmp.name)
     try:
         path.write_bytes(await file.read())
-        locale = _normalize_locale(language) or _normalize_locale(LOCALE)
-        locale_label = locale or "auto"
+        locale = (language or "").strip() or (LOCALE or "").strip()
         try:
             result = transcribe_audio_file(
                 path,
@@ -66,7 +58,7 @@ async def transcribe_audio(
             if not str(payload.get("text") or "").strip():
                 log.info(
                     "Empty transcription | locale=%s | file=%s",
-                    locale_label,
+                    locale,
                     file.filename,
                 )
                 return Response(status_code=204)
@@ -75,7 +67,7 @@ async def transcribe_audio(
             if _is_no_speech_error(str(e)):
                 log.info(
                     "No speech detected | locale=%s | file=%s",
-                    locale_label,
+                    locale,
                     file.filename,
                 )
                 return Response(status_code=204)

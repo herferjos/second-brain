@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from exocort import settings
+
+log = logging.getLogger("audio_capture")
 
 
 @dataclass(frozen=True)
@@ -49,9 +52,15 @@ class Settings:
     def from_env(cls) -> "Settings":
         from .device import detect_loopback_input_device_name
 
+        system_enabled = settings.audio_capture_system_enabled()
         system_device = settings.audio_capture_system_input_device()
-        if system_device is None and settings.audio_capture_system_enabled():
+        if system_device is None and system_enabled:
             system_device = detect_loopback_input_device_name()
+        if system_enabled and system_device is None:
+            log.info(
+                "System audio capture enabled with automatic discovery mode "
+                "(no explicit input device configured)."
+            )
 
         sample_rate = settings.audio_capture_sample_rate()
         frame_ms = settings.audio_capture_frame_ms()
@@ -94,7 +103,7 @@ class Settings:
                     max_segment_ms=settings.audio_capture_system_max_segment_ms(),
                     input_device=system_device,
                 )
-                if system_device is not None
+                if system_enabled
                 else None
             ),
         )

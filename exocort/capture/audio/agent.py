@@ -69,7 +69,15 @@ class AudioCaptureAgent:
                     self._handle_segment,
                     stop_event=self.stop_event,
                 )
-            except Exception:
+            except Exception as e:
+                if config.source == "system" and "unavailable" in str(e).lower():
+                    log.warning(
+                        "System audio capture unavailable; waiting before retry | source=%s | error=%s",
+                        config.source,
+                        str(e),
+                    )
+                    self.stop_event.wait(max(self.settings.reconnect_delay_s, 15.0))
+                    continue
                 log.exception("Audio source failed | source=%s", config.source)
                 self.stop_event.wait(self.settings.reconnect_delay_s)
 
@@ -104,7 +112,7 @@ def listen_microphone(
     idle_timeout_s: float | None = None,
 ) -> None:
     frame_samples = int(config.sample_rate * config.frame_ms / 1000)
-    resolved_device, resolved_label = resolve_input_device(
+    resolved_device, resolved_label, stream_overrides = resolve_input_device(
         requested_device=config.input_device,
         source=config.source,
     )
@@ -116,6 +124,12 @@ def listen_microphone(
     }
     if resolved_device is not None:
         stream_kwargs["device"] = resolved_device
+    if stream_overrides.get("system_unavailable"):
+        raise RuntimeError(
+            "System audio capture is unavailable: no loopback/monitor source found."
+        )
+    if stream_overrides:
+        stream_kwargs.update(stream_overrides)
 
     segmenter = VadSegmenter(config)
     started_at = time.monotonic()

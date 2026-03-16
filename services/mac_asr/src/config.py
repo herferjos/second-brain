@@ -23,7 +23,7 @@ def _env_bool(key: str, default: bool) -> bool:
 
 HOST = _env("MAC_ASR_HOST", "127.0.0.1")
 PORT = int(_env_float("MAC_ASR_PORT", 9092))
-LOCALE = _env("MAC_ASR_LOCALE", "es-ES")
+LOCALE = _env("MAC_ASR_LOCALE", "auto")
 TRANSCRIPTION_TIMEOUT_S = max(3.0, _env_float("MAC_ASR_TRANSCRIPTION_TIMEOUT_S", 30.0))
 PROMPT_PERMISSION = _env_bool("MAC_ASR_PROMPT_PERMISSION", True)
 LOG_LEVEL = getattr(logging, _env("MAC_ASR_LOG_LEVEL", "INFO").upper(), logging.INFO)

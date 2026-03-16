@@ -26,6 +26,13 @@ def _foundation():
     return Foundation
 
 
+def _is_no_speech_error(error_message: str) -> bool:
+    msg = (error_message or "").lower()
+    return ("no speech detected" in msg) or (
+        "kafassistanterrordomain" in msg and "code=1110" in msg
+    )
+
+
 def ensure_speech_permission(prompt: bool = False) -> bool:
     import threading
     Speech = _speech()
@@ -54,9 +61,25 @@ def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Trans
     Foundation = _foundation()
     Speech = _speech()
 
-    recognizer = Speech.SFSpeechRecognizer.alloc().init()
+    locale_id = (locale or "").strip()
+    recognizer = None
+    if locale_id:
+        try:
+            ns_locale = Foundation.NSLocale.alloc().initWithLocaleIdentifier_(locale_id)
+            recognizer = Speech.SFSpeechRecognizer.alloc().initWithLocale_(ns_locale)
+        except Exception:
+            recognizer = None
+    if recognizer is None:
+        recognizer = Speech.SFSpeechRecognizer.alloc().init()
     if recognizer is None:
         raise RuntimeError("Speech recognizer is not available.")
+    resolved_locale = locale_id
+    try:
+        recognizer_locale = recognizer.locale()
+        if recognizer_locale is not None:
+            resolved_locale = str(recognizer_locale.localeIdentifier() or resolved_locale)
+    except Exception:
+        pass
 
     request = Speech.SFSpeechURLRecognitionRequest.alloc().initWithURL_(
         objc.lookUpClass("NSURL").fileURLWithPath_(str(path))
@@ -87,4 +110,4 @@ def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Trans
     if state["error"] and not state["text"]:
         raise RuntimeError(state["error"])
 
-    return Transcription(text=str(state["text"]).strip(), locale=locale)
+    return Transcription(text=str(state["text"]).strip(), locale=resolved_locale or "auto")

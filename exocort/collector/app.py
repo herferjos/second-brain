@@ -117,6 +117,21 @@ async def api_audio(
                 "error": "audio_forward_failed",
             }
 
+        # Skip vault writes when the provider returned an empty body (no text at all).
+        # This keeps the vault focused on useful transcriptions.
+        if not (resp_body or "").strip():
+            log.info(
+                "Audio response empty; skipping vault write | segment_id=%s | url=%s",
+                segment_id,
+                ep.url,
+            )
+            return {
+                "ok": True,
+                "forwarded": 1,
+                "empty": True,
+                "status": status,
+            }
+
         results = [
             normalize_vault_response(
                 ep.url, ep.format, ok, status, resp_body, extra.get("parsed_text")

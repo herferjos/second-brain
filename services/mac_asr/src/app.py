@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from starlette.responses import Response
 
-from .asr import ensure_speech_permission, transcribe_audio_file
+from .asr import _is_no_speech_error, ensure_speech_permission, transcribe_audio_file
 from .config import (
     HOST,
     LOCALE,
@@ -15,24 +17,32 @@ from .config import (
     TRANSCRIPTION_TIMEOUT_S,
 )
 
+log = logging.getLogger("mac_asr")
 
 app = FastAPI(title="Mac ASR", version="0.1.0")
+
+
+def _normalize_locale(raw_locale: str | None) -> str:
+    value = (raw_locale or "").strip()
+    if value.lower() in {"", "auto", "autodetect", "detect", "default"}:
+        return ""
+    return value
 
 
 @app.get("/health")
 def health() -> dict[str, object]:
     return {
         "ok": True,
-        "locale": LOCALE,
+        "locale": _normalize_locale(LOCALE) or "auto",
         "speech_permission": ensure_speech_permission(prompt=False),
     }
 
 
-@app.post("/v1/audio/transcriptions")
+@app.post("/v1/audio/transcriptions", response_model=None)
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: Annotated[str | None, Form()] = None,
-) -> dict[str, object]:
+) -> object:
     if not ensure_speech_permission(prompt=PROMPT_PERMISSION):
         raise HTTPException(
             status_code=409,
@@ -44,12 +54,32 @@ async def transcribe_audio(
         path = Path(tmp.name)
     try:
         path.write_bytes(await file.read())
-        result = transcribe_audio_file(
-            path,
-            locale=language or LOCALE,
-            timeout_s=TRANSCRIPTION_TIMEOUT_S,
-        )
-        return result.to_dict()
+        locale = _normalize_locale(language) or _normalize_locale(LOCALE)
+        locale_label = locale or "auto"
+        try:
+            result = transcribe_audio_file(
+                path,
+                locale=locale,
+                timeout_s=TRANSCRIPTION_TIMEOUT_S,
+            )
+            payload = result.to_dict()
+            if not str(payload.get("text") or "").strip():
+                log.info(
+                    "Empty transcription | locale=%s | file=%s",
+                    locale_label,
+                    file.filename,
+                )
+                return Response(status_code=204)
+            return payload
+        except RuntimeError as e:
+            if _is_no_speech_error(str(e)):
+                log.info(
+                    "No speech detected | locale=%s | file=%s",
+                    locale_label,
+                    file.filename,
+                )
+                return Response(status_code=204)
+            raise
     finally:
         path.unlink(missing_ok=True)
 

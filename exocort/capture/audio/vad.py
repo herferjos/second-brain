@@ -25,6 +25,16 @@ class VadSegmenter:
         self.pre_roll_frames = max(1, int(config.pre_roll_ms / config.frame_ms))
         self.min_segment_frames = max(1, int(config.min_segment_ms / config.frame_ms))
         self.max_segment_frames = max(1, int(config.max_segment_ms / config.frame_ms))
+        self.long_phrase_frames = max(1, int(1800 / config.frame_ms))
+        self.very_long_phrase_frames = max(1, int(5000 / config.frame_ms))
+        self.short_pause_extension_frames = max(1, int(400 / config.frame_ms))
+        self.long_pause_extension_frames = max(1, int(800 / config.frame_ms))
+        self.short_segment_frames = max(1, int(1600 / config.frame_ms))
+        self.short_segment_extra_pause_frames = max(1, int(350 / config.frame_ms))
+        self.max_end_silence_frames = max(
+            self.end_silence_frames, int(2500 / config.frame_ms)
+        )
+        self.tail_keep_silence_frames = max(1, int(180 / config.frame_ms))
 
         self._vad = webrtcvad.Vad(max(0, min(3, config.vad_mode)))
         self._buffer = b""
@@ -81,10 +91,26 @@ class VadSegmenter:
         if len(self._frames) >= self.max_segment_frames:
             return self._finalize(self._frames, "max_segment")
 
-        if self._silence_frames >= self.end_silence_frames:
-            frames = self._frames[: -self._silence_frames] or self._frames
+        allowed_silence_frames = self._allowed_silence_frames(len(self._frames))
+        if self._silence_frames >= allowed_silence_frames:
+            if (
+                len(self._frames) < self.short_segment_frames
+                and self._silence_frames
+                < (allowed_silence_frames + self.short_segment_extra_pause_frames)
+            ):
+                return None
+            trim_frames = max(0, self._silence_frames - self.tail_keep_silence_frames)
+            frames = self._frames[: -trim_frames] if trim_frames > 0 else list(self._frames)
             return self._finalize(frames, "silence")
         return None
+
+    def _allowed_silence_frames(self, frame_count: int) -> int:
+        allowed = self.end_silence_frames
+        if frame_count >= self.long_phrase_frames:
+            allowed += self.short_pause_extension_frames
+        if frame_count >= self.very_long_phrase_frames:
+            allowed += self.long_pause_extension_frames
+        return min(self.max_end_silence_frames, allowed)
 
     def _finalize(self, frames: list[bytes], ended_by: str) -> AudioSegment | None:
         frame_count = len(frames)

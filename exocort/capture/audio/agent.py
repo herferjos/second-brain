@@ -8,7 +8,6 @@ from threading import Event, Thread
 import sounddevice as sd
 
 from .device import ResolvedDevice, resolve_input_device
-from .mac_helper import is_macos, start_helper
 from .models import AudioConfig, AudioSegment, Settings
 from .processing import PcmProcessor, pcm_rms
 from .uploader import SpoolUploader
@@ -29,8 +28,6 @@ class AudioCaptureAgent:
             return
 
         sources = [self.settings.audio]
-        if self.settings.system_audio is not None:
-            sources.append(self.settings.system_audio)
 
         self.uploader.flush_pending(max_files=10_000)
         threads = [
@@ -83,14 +80,6 @@ class AudioCaptureAgent:
                     stop_event=self.stop_event,
                 )
             except Exception as e:
-                if config.source == "system" and "unavailable" in str(e).lower():
-                    log.warning(
-                        "System audio capture unavailable; waiting before retry | source=%s | error=%s",
-                        config.source,
-                        str(e),
-                    )
-                    self.stop_event.wait(max(self.settings.reconnect_delay_s, 15.0))
-                    continue
                 log.exception("Audio source failed | source=%s", config.source)
                 self.stop_event.wait(self.settings.reconnect_delay_s)
 
@@ -133,7 +122,7 @@ def _log_stream_open(
         config.frame_ms,
         source_channels,
         config.latency,
-        resolved.label if resolved else "helper",
+        resolved.label if resolved else "default",
         info.hostapi_name if info else "",
         info.default_samplerate if info else 0.0,
     )
@@ -160,10 +149,6 @@ def _iter_sounddevice_frames(
         stream_kwargs["latency"] = config.latency
     if resolved.index is not None:
         stream_kwargs["device"] = resolved.index
-    if resolved.overrides.get("system_unavailable"):
-        raise RuntimeError(
-            "System audio capture is unavailable: no loopback/monitor source found."
-        )
     if resolved.overrides:
         stream_kwargs.update(resolved.overrides)
 
@@ -193,62 +178,12 @@ def _iter_sounddevice_frames(
             )
 
 
-def _iter_mac_helper_frames(
-    config: AudioConfig,
-    *,
-    stop_event: Event | None,
-    idle_timeout_s: float | None,
-):
-    helper = start_helper(
-        sample_rate=config.capture_sample_rate,
-        channels=max(1, config.channels),
-        helper_path=config.helper_path,
-    )
-    header = helper.header
-    _log_stream_open(
-        config=config,
-        resolved=None,
-        source_sample_rate=header.sample_rate,
-        source_channels=header.channels,
-    )
-    frame_samples = int(header.sample_rate * config.frame_ms / 1000)
-    frame_bytes = frame_samples * header.channels * 2
-    started_at = time.monotonic()
-    try:
-        while True:
-            if stop_event is not None and stop_event.is_set():
-                break
-            if idle_timeout_s is not None and (time.monotonic() - started_at) >= idle_timeout_s:
-                break
-            chunk = helper.read_exact(frame_bytes)
-            if chunk is None:
-                break
-            yield (
-                header.sample_rate,
-                header.channels,
-                None,
-                chunk,
-            )
-    finally:
-        helper.close()
-
-
 def _stream_frames(
     config: AudioConfig,
     *,
     stop_event: Event | None,
     idle_timeout_s: float | None,
 ):
-    if config.source == "system" and is_macos():
-        try:
-            yield from _iter_mac_helper_frames(
-                config,
-                stop_event=stop_event,
-                idle_timeout_s=idle_timeout_s,
-            )
-            return
-        except Exception as exc:
-            log.warning("macOS helper failed; falling back to sounddevice | error=%s", exc)
     yield from _iter_sounddevice_frames(config, stop_event=stop_event, idle_timeout_s=idle_timeout_s)
 
 

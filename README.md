@@ -1,6 +1,6 @@
 # Exocort
 
-Local capture pipeline: record microphone and system audio, capture the screen, send both to a collector that forwards to configurable processing APIs (ASR, OCR, etc.) and persists responses to a vault.
+Local capture pipeline: record microphone audio, capture the screen, send both to a collector that forwards to configurable processing APIs (ASR, OCR, etc.) and persists responses to a vault.
 
 ## Overview
 
@@ -8,7 +8,7 @@ Exocort is a modular system of **capture agents** and a **collector**:
 
 | Component | Role |
 |-----------|------|
-| **exocort-audio** | Captures mic (and optional system loopback), segments speech with VAD, writes WAV to a temp spool, uploads each segment to the collector. |
+| **exocort-audio** | Captures mic, segments speech with VAD, writes WAV to a temp spool, uploads each segment to the collector. |
 | **exocort-screen** | Captures the primary display at a configurable FPS and uploads each new frame to the collector. |
 | **exocort-collector** | HTTP server that receives audio and screen uploads, forwards them to endpoints defined in `config.json`, and writes API responses to a vault. |
 
@@ -132,7 +132,6 @@ exocort-collector
 exocort-audio
 # Reads COLLECTOR_AUDIO_URL and AUDIO_CAPTURE_* from .env
 ```
-macOS note: system audio capture uses a ScreenCaptureKit helper (`exocort/capture/audio/mac_audio_helper.swift`). This requires Screen Recording permission. Set `AUDIO_CAPTURE_MAC_HELPER_PATH` if the helper is moved/compiled elsewhere.
 
 **3. Start screen capture**
 

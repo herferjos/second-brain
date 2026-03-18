@@ -31,7 +31,8 @@ def test_vad_segmenter_rejects_invalid_sample_rate() -> None:
         input_device=None,
         latency=None,
         gain_db=0.0,
-        helper_path=None,
+        low_speech_ratio=0.2,
+        low_speech_max_ms=1600,
     )
     with pytest.raises(ValueError, match="sample_rate"):
         VadSegmenter(config)
@@ -56,7 +57,8 @@ def test_vad_segmenter_rejects_invalid_frame_ms() -> None:
         input_device=None,
         latency=None,
         gain_db=0.0,
-        helper_path=None,
+        low_speech_ratio=0.2,
+        low_speech_max_ms=1600,
     )
     with pytest.raises(ValueError, match="frame_ms"):
         VadSegmenter(config)
@@ -81,7 +83,8 @@ def test_vad_segmenter_feed_empty_returns_empty() -> None:
         input_device=None,
         latency=None,
         gain_db=0.0,
-        helper_path=None,
+        low_speech_ratio=0.2,
+        low_speech_max_ms=1600,
     )
     seg = VadSegmenter(config)
     out = seg.feed(b"")
@@ -107,7 +110,8 @@ def test_vad_segmenter_flush_when_not_recording_returns_none() -> None:
         input_device=None,
         latency=None,
         gain_db=0.0,
-        helper_path=None,
+        low_speech_ratio=0.2,
+        low_speech_max_ms=1600,
     )
     seg = VadSegmenter(config)
     assert seg.flush() is None
@@ -146,7 +150,8 @@ def test_vad_segmenter_extends_pause_for_short_segments(
         input_device=None,
         latency=None,
         gain_db=0.0,
-        helper_path=None,
+        low_speech_ratio=0.2,
+        low_speech_max_ms=1600,
     )
     seg = VadSegmenter(config)
     frame = b"\x00\x20" * int(config.target_sample_rate * config.frame_ms / 1000)
@@ -194,7 +199,8 @@ def test_vad_segmenter_keeps_small_tail_before_finalize(
         input_device=None,
         latency=None,
         gain_db=0.0,
-        helper_path=None,
+        low_speech_ratio=0.2,
+        low_speech_max_ms=1600,
     )
     seg = VadSegmenter(config)
     frame = b"\x00\x20" * int(config.target_sample_rate * config.frame_ms / 1000)

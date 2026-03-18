@@ -5,7 +5,7 @@
 │                           CAPTURE AGENTS (local)                            │
 ├─────────────────────────────────┬─────────────────────────────────────────┤
 │  exocort-audio                   │  exocort-screen                          │
-│  (mic / system loopback)        │  (screenshots at FPS)                    │
+│  (mic)                          │  (screenshots at FPS)                    │
 │                                  │                                          │
 │  • VAD segments → WAV            │  • PNG screen + metadata               │
 │  • Spool → upload when segment   │  • Upload every new screen               │
@@ -39,7 +39,7 @@
 
 | Step | Component | Role |
 |------|-----------|------|
-| 1 | **exocort-audio** | Captures mic (and optionally system audio), segments with VAD, saves WAV to spool, then POSTs each segment to `COLLECTOR_AUDIO_URL` (default collector `/api/audio`). |
+| 1 | **exocort-audio** | Captures mic, segments with VAD, saves WAV to spool, then POSTs each segment to `COLLECTOR_AUDIO_URL` (default collector `/api/audio`). |
 | 2 | **exocort-screen** | Captures screen at configured FPS, POSTs each new screen to `COLLECTOR_SCREEN_URL` (default collector `/api/screen`). |
 | 3 | **exocort-collector** | Receives uploads on `/api/audio` and `/api/screen`; reads `config.json`; for each endpoint a **format adapter** (e.g. `default`, `openai`) builds the HTTP request and parses the response, so any ASR/OCR provider can be used without code changes. |
 | 4 | **Processing APIs** | External services (ASR, OCR, etc.) receive the forwarded requests and return their results (collector does not store or process the responses). |

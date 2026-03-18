@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from array import array
 
-from exocort.capture.audio.mac_helper import parse_header_line
 from exocort.capture.audio.processing import _downmix_to_mono, pcm_rms, _resample_pcm, ResampleState
 
 
@@ -26,9 +25,3 @@ def test_resample_length_scales() -> None:
     out = _resample_pcm(samples, src_rate=16000, dst_rate=8000, state=state)
     assert len(out) in (1600, 1598, 1602)
 
-
-def test_mac_helper_header_parse() -> None:
-    header = parse_header_line(b'{"sample_rate":48000,"channels":2,"format":"s16le"}\n')
-    assert header.sample_rate == 48000
-    assert header.channels == 2
-    assert header.format == "s16le"

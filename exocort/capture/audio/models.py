@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from exocort import settings
-
-log = logging.getLogger("audio_capture")
 
 
 @dataclass(frozen=True)
@@ -28,7 +25,6 @@ class AudioConfig:
     input_device: str | None
     latency: str | float | None
     gain_db: float
-    helper_path: str | None
     low_speech_ratio: float
     low_speech_max_ms: int
 
@@ -56,26 +52,12 @@ class Settings:
     reconnect_delay_s: float
     diagnostic_s: float
     audio: AudioConfig
-    system_audio: AudioConfig | None
 
     @classmethod
     def from_env(cls) -> "Settings":
-        from .device import detect_loopback_input_device_name
-
-        system_enabled = settings.audio_capture_system_enabled()
-        system_device = settings.audio_capture_system_input_device()
-        if system_device is None and system_enabled:
-            system_device = detect_loopback_input_device_name()
-        if system_enabled and system_device is None:
-            log.info(
-                "System audio capture enabled with automatic discovery mode "
-                "(no explicit input device configured)."
-            )
-
         capture_sample_rate = settings.audio_capture_sample_rate()
         target_sample_rate = settings.audio_capture_target_sample_rate()
         gain_db = settings.audio_capture_gain_db()
-        helper_path = settings.audio_capture_mac_helper_path()
         frame_ms = settings.audio_capture_frame_ms()
         return cls(
             enabled=settings.audio_capture_enabled(),
@@ -104,34 +86,7 @@ class Settings:
                 input_device=settings.audio_capture_input_device(),
                 latency=settings.audio_capture_latency(),
                 gain_db=gain_db,
-                helper_path=helper_path,
                 low_speech_ratio=settings.audio_capture_low_speech_ratio(),
                 low_speech_max_ms=settings.audio_capture_low_speech_max_ms(),
-            ),
-            system_audio=(
-                AudioConfig(
-                    source="system",
-                    capture_sample_rate=capture_sample_rate,
-                    target_sample_rate=target_sample_rate,
-                    channels=settings.audio_capture_system_channels(),
-                    frame_ms=frame_ms,
-                    vad_mode=settings.audio_capture_system_vad_mode(),
-                    start_rms=settings.audio_capture_system_start_rms(),
-                    continue_rms=settings.audio_capture_system_continue_rms(),
-                    start_trigger_ms=settings.audio_capture_system_start_trigger_ms(),
-                    start_window_ms=settings.audio_capture_system_start_window_ms(),
-                    end_silence_ms=settings.audio_capture_system_end_silence_ms(),
-                    pre_roll_ms=settings.audio_capture_system_pre_roll_ms(),
-                    min_segment_ms=settings.audio_capture_system_min_segment_ms(),
-                    max_segment_ms=settings.audio_capture_system_max_segment_ms(),
-                    input_device=system_device,
-                    latency=settings.audio_capture_system_latency(),
-                    gain_db=gain_db,
-                    helper_path=helper_path,
-                    low_speech_ratio=settings.audio_capture_system_low_speech_ratio(),
-                    low_speech_max_ms=settings.audio_capture_system_low_speech_max_ms(),
-                )
-                if system_enabled
-                else None
             ),
         )

@@ -1,27 +1,12 @@
 from __future__ import annotations
 
 import logging
-import platform
 from dataclasses import dataclass
 from pathlib import Path
 
 import sounddevice as sd
 
 log = logging.getLogger("audio_capture")
-
-LOOPBACK_KEYWORDS = (
-    "loopback",
-    "blackhole",
-    "soundflower",
-    "vb-cable",
-    "monitor",
-    "mix",
-    "pulse",
-    "pipewire",
-    "virtual",
-    "stereo mix",
-    "what u hear",
-)
 
 PREFERRED_MIC_KEYWORDS = (
     "microphone",
@@ -44,7 +29,6 @@ class DeviceInfo:
     max_output_channels: int
     default_samplerate: float
     hostapi_name: str
-    is_loopback: bool = False
 
 
 @dataclass(frozen=True)
@@ -55,21 +39,13 @@ class ResolvedDevice:
     info: DeviceInfo | None
 
 
-def detect_loopback_input_device_name() -> str | None:
-    detected = _detect_loopback_input_device(_list_input_devices())
-    if detected is None:
-        return None
-    return detected.name
-
-
 def resolve_input_device(
     *,
     requested_device: str | None,
     source: str,
 ) -> ResolvedDevice:
-    system_devices = _list_system_capture_devices()
     input_devices = _list_input_devices()
-    devices = system_devices if source == "system" else input_devices
+    devices = input_devices
 
     if requested_device:
         exact = _match_input_device(devices, requested_device, exact=True)
@@ -90,15 +66,6 @@ def resolve_input_device(
             requested_device,
             source,
         )
-
-    if source == "system":
-        detected = _detect_loopback_input_device(devices)
-        if detected is not None:
-            return _resolved_device(detected)
-        wasapi_default = _resolve_windows_default_loopback()
-        if wasapi_default is not None:
-            return wasapi_default
-        return ResolvedDevice(None, "system-unavailable", {"system_unavailable": True}, None)
 
     default_device = _resolve_default_input(input_devices)
     if default_device is not None:
@@ -134,34 +101,6 @@ def _list_input_devices() -> list[DeviceInfo]:
     return devices
 
 
-def _list_system_capture_devices() -> list[DeviceInfo]:
-    devices = list(_list_input_devices())
-    if platform.system().lower() != "windows":
-        return devices
-    query = sd.query_devices()
-    for index, device in enumerate(query):
-        max_out = int(device.get("max_output_channels", 0) or 0)
-        if max_out <= 0:
-            continue
-        hostapi_name = _device_hostapi_name(index)
-        if "wasapi" not in hostapi_name.lower():
-            continue
-        name = str(device.get("name", f"device-{index}"))
-        default_sr = float(device.get("default_samplerate", 0.0) or 0.0)
-        devices.append(
-            DeviceInfo(
-                index=index,
-                name=f"{name} (loopback)",
-                max_input_channels=max_out,
-                max_output_channels=max_out,
-                default_samplerate=default_sr,
-                hostapi_name=hostapi_name,
-                is_loopback=True,
-            )
-        )
-    return devices
-
-
 def _match_input_device(
     devices: list[DeviceInfo],
     requested_device: str,
@@ -184,15 +123,6 @@ def _match_input_device(
         if exact and candidate == requested:
             return device
         if not exact and requested in candidate:
-            return device
-    return None
-
-
-def _detect_loopback_input_device(devices: list[DeviceInfo]) -> DeviceInfo | None:
-    for device in devices:
-        candidate = device.name.lower()
-        if any(keyword in candidate for keyword in LOOPBACK_KEYWORDS):
-            log.info("Detected loopback input device automatically: %s", device.name)
             return device
     return None
 
@@ -232,48 +162,7 @@ def _device_hostapi_name(index: int) -> str:
 
 def _resolved_device(device: DeviceInfo) -> ResolvedDevice:
     label = device.name
-    overrides: dict[str, object] = {}
-    if "(loopback)" in label.lower() or device.is_loopback:
-        wasapi_settings = getattr(sd, "WasapiSettings", None)
-        if wasapi_settings is not None:
-            overrides["extra_settings"] = wasapi_settings(loopback=True)
-    return ResolvedDevice(device.index, label, overrides, device)
-
-
-def _resolve_windows_default_loopback() -> ResolvedDevice | None:
-    if platform.system().lower() != "windows":
-        return None
-    wasapi_settings = getattr(sd, "WasapiSettings", None)
-    if wasapi_settings is None:
-        return None
-    try:
-        default_output_index = int(sd.default.device[1])  # type: ignore[index]
-        if default_output_index < 0:
-            return None
-        output = sd.query_devices(default_output_index)
-        if int(output.get("max_output_channels", 0) or 0) <= 0:
-            return None
-        hostapi_name = _device_hostapi_name(default_output_index)
-        if "wasapi" not in hostapi_name.lower():
-            return None
-        label = f"{output.get('name', f'device-{default_output_index}')} (loopback default output)"
-        info = DeviceInfo(
-            index=default_output_index,
-            name=str(label),
-            max_input_channels=int(output.get("max_output_channels", 0) or 0),
-            max_output_channels=int(output.get("max_output_channels", 0) or 0),
-            default_samplerate=float(output.get("default_samplerate", 0.0) or 0.0),
-            hostapi_name=hostapi_name,
-            is_loopback=True,
-        )
-        return ResolvedDevice(
-            default_output_index,
-            str(label),
-            {"extra_settings": wasapi_settings(loopback=True)},
-            info,
-        )
-    except Exception:
-        return None
+    return ResolvedDevice(device.index, label, {}, device)
 
 
 def _pcm_rms(pcm_bytes: bytes) -> int:

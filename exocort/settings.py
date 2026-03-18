@@ -152,66 +152,8 @@ def audio_capture_gain_db() -> float:
     return _float("AUDIO_CAPTURE_GAIN_DB", 0.0)
 
 
-def audio_capture_mac_helper_path() -> str | None:
-    raw = _str("AUDIO_CAPTURE_MAC_HELPER_PATH")
-    return raw or None
-
-
 def audio_capture_diagnostic_s() -> float:
     return max(0.0, _float("AUDIO_CAPTURE_DIAGNOSTIC_S", 0.0))
-
-
-def audio_capture_system_enabled() -> bool:
-    return _bool("AUDIO_CAPTURE_SYSTEM_ENABLED", False)
-
-
-def audio_capture_system_input_device() -> str | None:
-    raw = _str("AUDIO_CAPTURE_SYSTEM_INPUT_DEVICE")
-    return raw or None
-
-
-def audio_capture_system_channels() -> int:
-    return max(1, _int("AUDIO_CAPTURE_SYSTEM_CHANNELS", 2))
-
-
-def audio_capture_system_latency() -> str | float | None:
-    return _latency("AUDIO_CAPTURE_SYSTEM_LATENCY")
-
-
-def audio_capture_system_vad_mode() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_VAD_MODE", 2)
-
-
-def audio_capture_system_start_rms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_START_RMS", 150)
-
-
-def audio_capture_system_continue_rms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_CONTINUE_RMS", 100)
-
-
-def audio_capture_system_start_trigger_ms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_START_TRIGGER_MS", 120)
-
-
-def audio_capture_system_start_window_ms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_START_WINDOW_MS", 400)
-
-
-def audio_capture_system_end_silence_ms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_END_SILENCE_MS", 700)
-
-
-def audio_capture_system_pre_roll_ms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_PRE_ROLL_MS", 300)
-
-
-def audio_capture_system_min_segment_ms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_MIN_SEGMENT_MS", 500)
-
-
-def audio_capture_system_max_segment_ms() -> int:
-    return _int("AUDIO_CAPTURE_SYSTEM_MAX_SEGMENT_MS", 30_000)
 
 
 def audio_capture_low_speech_ratio() -> float:
@@ -220,14 +162,6 @@ def audio_capture_low_speech_ratio() -> float:
 
 def audio_capture_low_speech_max_ms() -> int:
     return max(0, _int("AUDIO_CAPTURE_LOW_SPEECH_MAX_MS", 1600))
-
-
-def audio_capture_system_low_speech_ratio() -> float:
-    return max(0.0, min(1.0, _float("AUDIO_CAPTURE_SYSTEM_LOW_SPEECH_RATIO", 0.2)))
-
-
-def audio_capture_system_low_speech_max_ms() -> int:
-    return max(0, _int("AUDIO_CAPTURE_SYSTEM_LOW_SPEECH_MAX_MS", 1600))
 
 
 # -----------------------------------------------------------------------------

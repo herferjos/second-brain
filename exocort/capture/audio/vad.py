@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import audioop
 from collections import deque
+import logging
 
 import webrtcvad
 
 from .models import AudioConfig, AudioSegment
+
+log = logging.getLogger("audio_capture.vad")
 
 
 class VadSegmenter:
@@ -42,6 +45,7 @@ class VadSegmenter:
         self._recent_flags: deque[bool] = deque(maxlen=self.start_window_frames)
         self._frames: list[bytes] = []
         self._silence_frames = 0
+        self._speech_frames = 0
         self._recording = False
 
     def feed(self, chunk: bytes) -> list[AudioSegment]:
@@ -78,6 +82,7 @@ class VadSegmenter:
             ):
                 self._recording = True
                 self._silence_frames = 0
+                self._speech_frames = 0
                 self._frames = list(self._pre_roll)
                 self._recent_flags.clear()
             return None
@@ -85,6 +90,7 @@ class VadSegmenter:
         self._frames.append(frame)
         if continue_active:
             self._silence_frames = 0
+            self._speech_frames += 1
         else:
             self._silence_frames += 1
 
@@ -119,19 +125,46 @@ class VadSegmenter:
             pcm_bytes = b"".join(frames)
             rms = int(audioop.rms(pcm_bytes, 2)) if pcm_bytes else 0
             if rms > 0:
-                segment = AudioSegment(
-                    source=self.config.source,
-                    pcm_bytes=pcm_bytes,
-                    sample_rate=self.config.target_sample_rate,
-                    duration_ms=frame_count * self.config.frame_ms,
-                    rms=rms,
-                    ended_by=ended_by,
-                    original_sample_rate=self.config.capture_sample_rate,
-                    original_channels=self.config.channels,
-                )
+                if self.config.low_speech_max_ms > 0 and self.config.low_speech_ratio > 0.0:
+                    max_frames = max(1, int(self.config.low_speech_max_ms / self.config.frame_ms))
+                else:
+                    max_frames = 0
+                if (
+                    max_frames > 0
+                    and frame_count <= max_frames
+                    and (self._speech_frames / max(1, frame_count)) < self.config.low_speech_ratio
+                ):
+                    log.info(
+                        "Dropping low-speech segment | source=%s | frames=%d | speech_frames=%d | rms=%d",
+                        self.config.source,
+                        frame_count,
+                        self._speech_frames,
+                        rms,
+                    )
+                    rms = 0
+                if ended_by == "max_segment" and rms < self.config.start_rms:
+                    log.info(
+                        "Dropping low-RMS max segment | source=%s | rms=%d | start_rms=%d",
+                        self.config.source,
+                        rms,
+                        self.config.start_rms,
+                    )
+                    rms = 0
+                if rms > 0:
+                    segment = AudioSegment(
+                        source=self.config.source,
+                        pcm_bytes=pcm_bytes,
+                        sample_rate=self.config.target_sample_rate,
+                        duration_ms=frame_count * self.config.frame_ms,
+                        rms=rms,
+                        ended_by=ended_by,
+                        original_sample_rate=self.config.capture_sample_rate,
+                        original_channels=self.config.channels,
+                    )
 
         self._frames = []
         self._silence_frames = 0
+        self._speech_frames = 0
         self._recording = False
         self._recent_flags.clear()
         return segment

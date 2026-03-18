@@ -214,6 +214,22 @@ def audio_capture_system_max_segment_ms() -> int:
     return _int("AUDIO_CAPTURE_SYSTEM_MAX_SEGMENT_MS", 30_000)
 
 
+def audio_capture_low_speech_ratio() -> float:
+    return max(0.0, min(1.0, _float("AUDIO_CAPTURE_LOW_SPEECH_RATIO", 0.2)))
+
+
+def audio_capture_low_speech_max_ms() -> int:
+    return max(0, _int("AUDIO_CAPTURE_LOW_SPEECH_MAX_MS", 1600))
+
+
+def audio_capture_system_low_speech_ratio() -> float:
+    return max(0.0, min(1.0, _float("AUDIO_CAPTURE_SYSTEM_LOW_SPEECH_RATIO", 0.2)))
+
+
+def audio_capture_system_low_speech_max_ms() -> int:
+    return max(0, _int("AUDIO_CAPTURE_SYSTEM_LOW_SPEECH_MAX_MS", 1600))
+
+
 # -----------------------------------------------------------------------------
 # Screen capture
 # -----------------------------------------------------------------------------

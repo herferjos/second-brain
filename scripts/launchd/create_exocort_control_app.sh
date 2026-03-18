@@ -7,6 +7,7 @@ APP_NAME="Exocort.app"
 APP_PATH="${TARGET_DIR}/${APP_NAME}"
 MANAGER_SCRIPT="${ROOT_DIR}/scripts/launchd/exocort-mac-daemon.sh"
 ICON_PNG="${ROOT_DIR}/assessts/exocort.png"
+CONFIG_PATH="${ROOT_DIR}/config/config.mac.json"
 
 if ! command -v osacompile >/dev/null 2>&1; then
   echo "osacompile not found. This script must run on macOS."
@@ -55,7 +56,7 @@ try
     set outputText to do shell script quoted form of managerScript & " " & commandName
   end timeout
   if outputText is "" then
-    set outputText to "Completed: " & commandName
+    set outputText to "Completed: " & commandName & "\nConfig: " & "${CONFIG_PATH}"
   end if
   display dialog outputText buttons {"OK"} default button "OK" with title "Exocort"
 on error errMsg number errNum

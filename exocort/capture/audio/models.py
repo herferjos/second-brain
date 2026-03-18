@@ -29,6 +29,8 @@ class AudioConfig:
     latency: str | float | None
     gain_db: float
     helper_path: str | None
+    low_speech_ratio: float
+    low_speech_max_ms: int
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,8 @@ class Settings:
                 latency=settings.audio_capture_latency(),
                 gain_db=gain_db,
                 helper_path=helper_path,
+                low_speech_ratio=settings.audio_capture_low_speech_ratio(),
+                low_speech_max_ms=settings.audio_capture_low_speech_max_ms(),
             ),
             system_audio=(
                 AudioConfig(
@@ -124,6 +128,8 @@ class Settings:
                     latency=settings.audio_capture_system_latency(),
                     gain_db=gain_db,
                     helper_path=helper_path,
+                    low_speech_ratio=settings.audio_capture_system_low_speech_ratio(),
+                    low_speech_max_ms=settings.audio_capture_system_low_speech_max_ms(),
                 )
                 if system_enabled
                 else None

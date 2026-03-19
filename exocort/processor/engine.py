@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from .config import AppConfig, LLMServiceConfig
+from .config import AppConfig, LLMConfig
 
 import requests
 
@@ -320,7 +320,7 @@ class ProcessorState:
 
 
 class ProcessorLLMClient:
-    def __init__(self, llm_config: LLMServiceConfig, prompts: dict[str, str], timeout_s: float = 60.0) -> None:
+    def __init__(self, llm_config: LLMConfig, prompts: dict[str, str], timeout_s: float = 60.0) -> None:
         self._config = llm_config
         self._prompts = prompts
         self._timeout_s = timeout_s
@@ -504,7 +504,7 @@ def _l1_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multip
 
         records = [_load_json(path) for path in batch_paths]
 
-        llm_client = ProcessorLLMClient(app_config.llm_service, app_config.prompts)
+        llm_client = ProcessorLLMClient(app_config.llm, app_config.prompts)
         try:
             semaphore.acquire()
             result = llm_client.complete_json("l1_clean", _build_l1_batch_payload(records, batch_paths))
@@ -619,7 +619,7 @@ def _l2_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multip
 
         inputs = [_load_json(path) for path in batch_paths]
 
-        llm_client = ProcessorLLMClient(app_config.llm_service, app_config.prompts)
+        llm_client = ProcessorLLMClient(app_config.llm, app_config.prompts)
         try:
             semaphore.acquire()
             result = llm_client.complete_json("l2_group", {"events": inputs})
@@ -792,7 +792,7 @@ def _l3_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multip
             "new_l2_events": l2_events
         }
 
-        llm_client = ProcessorLLMClient(app_config.llm_service, app_config.prompts)
+        llm_client = ProcessorLLMClient(app_config.llm, app_config.prompts)
         try:
             semaphore.acquire()
             result = llm_client.complete_json("l3_user_model", payload)
@@ -873,7 +873,7 @@ def _l4_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multip
             "user_model_files": user_model_content,
         }
 
-        llm_client = ProcessorLLMClient(app_config.llm_service, app_config.prompts)
+        llm_client = ProcessorLLMClient(app_config.llm, app_config.prompts)
         try:
             semaphore.acquire()
             reflection_text = llm_client.complete_text("l4_reflection", payload)

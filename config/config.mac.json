@@ -12,5 +12,8 @@
     "timeout": 30,
     "headers": {},
     "format": "default"
+  },
+  "llm": {
+    "url": "http://localhost:8008/v1/chat/completions"
   }
 }

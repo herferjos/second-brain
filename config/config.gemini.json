@@ -57,5 +57,17 @@
         }
       ]
     }
+  },
+  "llm": {
+    "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    "method": "POST",
+    "timeout": 60,
+    "headers": {
+      "Authorization": "Bearer ${GEMINI_API_KEY}"
+    },
+    "format": "gemini",
+    "body": {
+      "model": "gemini-2.0-flash"
+    }
   }
 }

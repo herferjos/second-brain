@@ -11,15 +11,17 @@ from typing import Any
 
 
 @dataclass
-class LLMServiceConfig:
+class LLMConfig:
     url: str
     headers: dict[str, str] = field(default_factory=dict)
     body: dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class AppConfig:
     prompts: dict[str, str]
-    llm_service: LLMServiceConfig
+    llm: LLMConfig
+
 
 def load_app_config(path: Path | None = None) -> AppConfig:
     if path is None:
@@ -31,18 +33,29 @@ def load_app_config(path: Path | None = None) -> AppConfig:
 
     data = json.loads(path.read_text(encoding="utf-8"))
 
-    prompts = data.get("prompts", {})
-    if not isinstance(prompts, dict):
-        prompts = {}
+    prompts = {
+        "l1_clean": os.environ.get("PROMPT_L1_CLEAN", ""),
+        "l2_group": os.environ.get("PROMPT_L2_GROUP", ""),
+        "l3_user_model": os.environ.get("PROMPT_L3_USER_MODEL", ""),
+        "l4_reflection": os.environ.get("PROMPT_L4_REFLECTION", ""),
+    }
+    prompts = {k: v for k, v in prompts.items() if v}
 
-    llm_service_data = data.get("llm_service", {})
-    if not isinstance(llm_service_data, dict):
-        llm_service_data = {}
+    llm_data = data.get("llm", {})
+    if not isinstance(llm_data, dict):
+        llm_data = {}
 
-    llm_service = LLMServiceConfig(
-        url=str(llm_service_data.get("url", "")),
-        headers={str(k): str(v) for k, v in llm_service_data.get("headers", {}).items()},
-        body=llm_service_data.get("body", {}),
+    headers = {str(k): str(v) for k, v in llm_data.get("headers", {}).items()}
+    if "openai_api_key" in os.environ:
+        headers.setdefault("Authorization", f"Bearer {os.environ['OPENAI_API_KEY']}")
+    elif "gemini_api_key" in os.environ:
+        headers.setdefault("x-goog-api-key", os.environ["GEMINI_API_KEY"])
+
+
+    llm = LLMConfig(
+        url=str(llm_data.get("url", "")),
+        headers=headers,
+        body=llm_data.get("body", {}),
     )
 
-    return AppConfig(prompts=prompts, llm_service=llm_service)
+    return AppConfig(prompts=prompts, llm=llm)

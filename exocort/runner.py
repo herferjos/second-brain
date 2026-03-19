@@ -64,7 +64,7 @@ def main() -> None:
     if processor_enabled:
         procs.append(
             subprocess.Popen(
-                [sys.executable, "-m", "exocort.processor.cli", "--watch"],
+                [sys.executable, "-m", "exocort.processor"],
                 cwd=str(_project_root),
                 env=env,
                 stdout=None,

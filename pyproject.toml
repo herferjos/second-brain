@@ -58,7 +58,7 @@ exocort = "exocort.runner:main"
 exocort-collector = "exocort.collector.app:main"
 exocort-audio = "exocort.capture.audio:main"
 exocort-screen = "exocort.capture.screen:main"
-exocort-processor = "exocort.processor.cli:main"
+exocort-processor = "exocort.processor.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

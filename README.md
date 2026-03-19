@@ -11,7 +11,7 @@ Exocort is a modular system of **capture agents** and a **collector**:
 | **exocort-audio** | Captures mic, segments speech with VAD, writes WAV to a temp spool, uploads each segment to the collector. |
 | **exocort-screen** | Captures the primary display at a configurable FPS and uploads each new frame to the collector. |
 | **exocort-collector** | HTTP server that receives audio and screen uploads, forwards them to endpoints defined in `config.json`, and writes API responses to a vault. |
-| **exocort-processor** | Reads the vault, extracts events/metadata, and writes derived artifacts (events, notes, profile). |
+| **exocort-processor** | Reads the vault and compacts it into layered memory: L1 clean events, L2 grouped timeline entries, L3 Obsidian-style notes/user model, and optional L4 reflections. |
 
 Processing (transcription, OCR, etc.) is done by **external services**; the collector only routes requests and stores results. See [Data flow](docs/data-flow.md) for details.
 
@@ -116,6 +116,8 @@ exocort
 
 This starts only the components enabled in `.env`: collector (if `COLLECTOR_ENABLED=1`), processor (if `PROCESSOR_ENABLED=1`), audio capture (if `AUDIO_CAPTURE_ENABLED=1`), screen capture (if `SCREEN_CAPTURE_ENABLED=1`). The collector is started first; the processor and capture agents follow after a short delay. Ctrl+C stops all.
 
+The processor reads the same `COLLECTOR_CONFIG` file and expects a `processor` block with `llm` and `prompts`. A ready-to-copy example lives at [config/config.json.example](config/config.json.example).
+
 ### Run components separately
 
 Run each process in its own terminal if you prefer. The collector must be up before the capture agents.
@@ -177,7 +179,7 @@ Entry points (see `pyproject.toml`): `exocort` (runner), `exocort-collector`, `e
 | Audio segments (before upload) | `AUDIO_CAPTURE_SPOOL_DIR` (default `./tmp/audio`) — removed after successful upload |
 | Collector temp files | `COLLECTOR_TMP_DIR` (default `./tmp/collector`) — removed after forward and vault write |
 | Persisted API responses | `COLLECTOR_VAULT_DIR` (default `./vault`) — `vault/{date}/{timestamp}_audio_{id}.json` etc. |
-| Processor outputs | `PROCESSOR_OUT_DIR` (default `./vault/processed`) — events, notes, profile |
+| Processor outputs | `PROCESSOR_OUT_DIR` (default `./vault/processed`) — `l1/`, `l2/`, `timeline/`, `notes/`, `user_model.json`, `reflections/`, plus `state/` |
 
 See [docs/data-flow.md](docs/data-flow.md) for the full picture.
 

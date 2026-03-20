@@ -25,7 +25,7 @@ class ProcessorConfig:
     out_dir: Path
     state_dir: Path
     poll_interval_seconds: int
-    l1_group_size: int
+    l1_trigger_threshold: int
     l2_trigger_threshold: int
     l3_trigger_threshold: int
     l4_enabled: bool
@@ -422,8 +422,7 @@ def _normalize_l1_output(
     timestamp = str(result.get("timestamp") or payload["timestamp"] or "")
     event_id = _safe_id(str(result.get("l1_event_id") or payload["raw_event_id"]))
     title = str(result.get("title") or "")
-    clean_text = str(result.get("clean_text") or payload["raw_text"] or "")
-    verbatim_quotes = _normalize_list(result.get("verbatim_quotes"))
+    description = str(result.get("description") or payload["raw_text"] or "")
     meta = result.get("meta")
     if not isinstance(meta, dict):
         meta = payload["meta"]
@@ -433,8 +432,7 @@ def _normalize_l1_output(
         "timestamp": timestamp,
         "date": _date_from_timestamp(timestamp),
         "title": title or _fallback_l1_title(payload),
-        "clean_text": clean_text,
-        "verbatim_quotes": [str(item) for item in verbatim_quotes if str(item).strip()],
+        "description": description,
         "meta": meta,
     }
     return out
@@ -476,12 +474,18 @@ def _fallback_l1_title(payload: dict[str, Any]) -> str:
 
 
 def _l1_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multiprocessing.Semaphore) -> None:
+    from exocort import settings
+    logging.basicConfig(
+        level=settings.log_level(),
+        format="%(asctime)s | %(levelname)s | %(processName)s | %(name)s | %(message)s",
+        force=True
+    )
     config.out_dir.mkdir(parents=True, exist_ok=True)
     assert config.state_dir is not None
     config.state_dir.mkdir(parents=True, exist_ok=True)
 
     while True:
-        vault_files = sorted(config.vault_dir.glob("*.json"))
+        vault_files = _iter_json_files_recursive(config.vault_dir)
         if not vault_files:
             logging.info("L1 worker: No raw events to process. Sleeping...")
             time.sleep(config.poll_interval_seconds)
@@ -496,7 +500,7 @@ def _l1_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multip
 
         # Only process one batch at a time within the loop for simplicity of worker logic
         # The main orchestrator will spawn multiple workers.
-        batch_paths = vault_files[:config.l1_group_size]
+        batch_paths = vault_files[: config.l1_trigger_threshold]
         if not batch_paths:
             logging.info("L1 worker: No raw events to process in batch. Sleeping...")
             time.sleep(config.poll_interval_seconds)
@@ -534,8 +538,8 @@ def _normalize_l2_item(item: dict[str, Any], inputs: list[dict[str, Any]], sourc
     start_ts = str(item.get("timestamp_start") or (min(timestamps) if timestamps else ""))
     end_ts = str(item.get("timestamp_end") or (max(timestamps) if timestamps else start_ts))
     title = str(item.get("title") or "")
-    summary = str(item.get("summary") or "")
-    clean_text = str(item.get("clean_text") or "")
+    summary = str(item.get("summary") or item.get("description") or "")
+    clean_text = str(item.get("clean_text") or summary or "")
     event_id = str(item.get("l2_event_id") or item.get("event_id") or "")
     if not event_id:
         base = title or (source_events[0].get("title") if source_events else "event")
@@ -550,6 +554,11 @@ def _normalize_l2_item(item: dict[str, Any], inputs: list[dict[str, Any]], sourc
         "timestamp_start": start_ts,
         "timestamp_end": end_ts,
         "date": _date_from_timestamp(start_ts or end_ts),
+        "source_event_ids": [
+            str(event.get("l1_event_id") or "").strip()
+            for event in source_events
+            if str(event.get("l1_event_id") or "").strip()
+        ],
     }
 
 
@@ -562,14 +571,28 @@ def _extract_l2_groups(result: dict[str, Any], inputs: list[dict[str, Any]]) -> 
 
     groups: list[dict[str, Any]] = []
     deleted: dict[str, list[int]] = {}
+    input_ids = {
+        str(event.get("l1_event_id") or "").strip(): idx
+        for idx, event in enumerate(inputs)
+        if isinstance(event, dict) and str(event.get("l1_event_id") or "").strip()
+    }
     for index, raw_item in enumerate(raw_items):
         if not isinstance(raw_item, dict):
             continue
         source_indexes_raw = raw_item.get("source_indexes") or raw_item.get("indexes") or raw_item.get("source_index")
+        source_event_ids_raw = raw_item.get("source_event_ids") or raw_item.get("source_ids") or raw_item.get("event_ids")
         if isinstance(source_indexes_raw, int):
             source_indexes = [source_indexes_raw]
         elif isinstance(source_indexes_raw, list):
             source_indexes = [int(i) for i in source_indexes_raw if isinstance(i, int) or (isinstance(i, str) and i.isdigit())]
+        elif isinstance(source_event_ids_raw, str):
+            source_indexes = [input_ids[source_event_ids_raw]] if source_event_ids_raw in input_ids else []
+        elif isinstance(source_event_ids_raw, list):
+            source_indexes = [
+                input_ids[event_id]
+                for event_id in source_event_ids_raw
+                if isinstance(event_id, str) and event_id in input_ids
+            ]
         else:
             if len(raw_items) == len(inputs):
                 source_indexes = [index]
@@ -578,10 +601,8 @@ def _extract_l2_groups(result: dict[str, Any], inputs: list[dict[str, Any]]) -> 
             else:
                 source_indexes = [min(index, max(0, len(inputs) - 1))]
 
-        # The instruction states: "If the count is >= config.l2_trigger_threshold: Take a batch of config.l2_trigger_threshold files. Call the l2_group prompt on the LLM. Save the resulting correlated L2 events..."
-        # This implies that the LLM is expected to return correlated groups.
-        # The old logic `if len(source_indexes) < 2:` filters out single events that are not explicitly grouped.
-        # Keeping this for now, assuming the LLM should group events.
+        # L2 should only emit real groups; singleton events remain in L1 until
+        # they can be grouped in a later batch or consumed downstream as-is.
         if len(source_indexes) < 2:
             continue
 
@@ -592,6 +613,12 @@ def _extract_l2_groups(result: dict[str, Any], inputs: list[dict[str, Any]]) -> 
 
 
 def _l2_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multiprocessing.Semaphore) -> None:
+    from exocort import settings
+    logging.basicConfig(
+        level=settings.log_level(),
+        format="%(asctime)s | %(levelname)s | %(processName)s | %(name)s | %(message)s",
+        force=True
+    )
     config.out_dir.mkdir(parents=True, exist_ok=True)
     assert config.state_dir is not None
     config.state_dir.mkdir(parents=True, exist_ok=True)
@@ -759,6 +786,12 @@ def _default_day_note(date: str, events: list[dict[str, Any]]) -> dict[str, Any]
 
 
 def _l3_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multiprocessing.Semaphore) -> None:
+    from exocort import settings
+    logging.basicConfig(
+        level=settings.log_level(),
+        format="%(asctime)s | %(levelname)s | %(processName)s | %(name)s | %(message)s",
+        force=True
+    )
     config.out_dir.mkdir(parents=True, exist_ok=True)
     assert config.state_dir is not None
     config.state_dir.mkdir(parents=True, exist_ok=True)
@@ -824,6 +857,12 @@ def _l3_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multip
 
 
 def _l4_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multiprocessing.Semaphore) -> None:
+    from exocort import settings
+    logging.basicConfig(
+        level=settings.log_level(),
+        format="%(asctime)s | %(levelname)s | %(processName)s | %(name)s | %(message)s",
+        force=True
+    )
     config.out_dir.mkdir(parents=True, exist_ok=True)
     assert config.state_dir is not None
     config.state_dir.mkdir(parents=True, exist_ok=True)

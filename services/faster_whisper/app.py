@@ -71,7 +71,7 @@ def main() -> None:
     host = os.environ.get("FASTER_WHISPER_HOST", "127.0.0.1")
     port = int(os.environ.get("FASTER_WHISPER_PORT", 9000))
 
-    uvicorn.run("app:app", host=host, port=port, reload=False)
+    uvicorn.run("app:app", host=host, port=port, reload=True)
 
 
 __all__ = ["app", "get_model", "main"]

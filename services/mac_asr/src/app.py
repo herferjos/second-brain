@@ -90,4 +90,4 @@ def main() -> None:
     import uvicorn
     if not ensure_speech_permission(prompt=PROMPT_PERMISSION):
         raise RuntimeError("Speech recognition permission is required.")
-    uvicorn.run("src.app:app", host=HOST, port=PORT, reload=False)
+    uvicorn.run("src.app:app", host=HOST, port=PORT, reload=True)

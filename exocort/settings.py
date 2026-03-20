@@ -252,9 +252,12 @@ def processor_state_dir() -> Path:
     return _path("PROCESSOR_STATE_DIR", _project_root / "state")
 
 
+def processor_poll_interval_seconds() -> float:
+    return _float("PROCESSOR_POLL_INTERVAL_SECONDS", 10.0)
+
 
 def processor_l1_trigger_threshold() -> int:
-    return _int("PROCESSOR_L1_TRIGGER_THRESHOLD", 3)
+    return _int("PROCESSOR_L1_TRIGGER_THRESHOLD", 5)
 
 
 def processor_l2_trigger_threshold() -> int:

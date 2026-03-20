@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import Any, Literal
@@ -17,6 +18,7 @@ app = FastAPI(title="Llama.cpp", version="0.1.0")
 
 _settings: LlamaCppSettings | None = None
 _llama = None
+_llama_lock = threading.Lock()
 
 
 class ChatMessage(BaseModel):
@@ -149,7 +151,10 @@ def chat_completions(payload: ChatCompletionRequest) -> dict[str, Any]:
             kwargs["stop"] = payload.stop
         if payload.response_format is not None:
             kwargs["response_format"] = payload.response_format
-        response = _llama.create_chat_completion(**kwargs)
+        # llama.cpp reuses mutable KV/cache state internally, so concurrent
+        # requests against the same model instance can corrupt generation.
+        with _llama_lock:
+            response = _llama.create_chat_completion(**kwargs)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -172,7 +177,7 @@ def main() -> None:
     import uvicorn
 
     settings = load_settings()
-    uvicorn.run("src.app:app", host=settings.host, port=settings.port, reload=False)
+    uvicorn.run("src.app:app", host=settings.host, port=settings.port, reload=True)
 
 
 __all__ = ["app", "main"]

@@ -21,7 +21,7 @@ from .engine import ProcessorConfig, _l1_worker, _l2_worker, _l3_worker, _l4_wor
 def main() -> None:
     logging.basicConfig(
         level=settings.log_level(),
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        format="%(asctime)s | %(levelname)s | %(processName)s | %(name)s | %(message)s",
     )
 
     app_config = load_app_config()
@@ -31,7 +31,7 @@ def main() -> None:
         out_dir=settings.processor_out_dir(),
         state_dir=settings.processor_state_dir(),
         poll_interval_seconds=settings.processor_poll_interval_seconds(),
-        l1_group_size=settings.processor_l1_group_size(),
+        l1_trigger_threshold=settings.processor_l1_trigger_threshold(),
         l2_trigger_threshold=settings.processor_l2_trigger_threshold(),
         l3_trigger_threshold=settings.processor_l3_trigger_threshold(),
         l4_enabled=settings.processor_l4_enabled(),

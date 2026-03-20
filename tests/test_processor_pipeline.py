@@ -34,9 +34,8 @@ class FakeProcessorLLMClient:
                     {
                         "l1_event_id": raw_event_id,
                         "timestamp": str(event.get("timestamp") or "2026-03-19T10:00:00+00:00"),
-                        "title": f"Cleaned {title}",
-                        "clean_text": f"Cleaned text for {raw_event_id}.",
-                        "verbatim_quotes": [f"quote from {raw_event_id}"],
+                        "title": f"Activity {title}",
+                        "description": f"User is working on {raw_event_id}.",
                         "meta": event.get("meta") or {},
                     }
                 )
@@ -54,12 +53,16 @@ class FakeProcessorLLMClient:
                 "events": [
                     {
                         "event_id": "group_2026-03-19T10-00",
-                        "title": "Grouped OCR work",
-                        "summary": "Grouped edits around OCR parsing.",
-                        "clean_text": "Consolidated OCR work.",
+                        "title": "OCR parser work",
+                        "summary": "Cluster of related OCR parser activity.",
+                        "clean_text": "Cluster of related OCR parser activity.",
                         "timestamp_start": start_ts,
                         "timestamp_end": end_ts,
-                        "source_indexes": source_indexes,
+                        "source_event_ids": [
+                            str(event.get("l1_event_id") or "")
+                            for event in events
+                            if isinstance(event, dict)
+                        ],
                     }
                 ]
             }
@@ -195,14 +198,15 @@ def test_processor_batches_l1_and_compacts_grouped_l1_inputs(
     assert state_l2.exists()
 
     l2_data = _load_json(l2_path)
-    assert l2_data["summary"] == "Grouped edits around OCR parsing."
+    assert l2_data["summary"] == "Cluster of related OCR parser activity."
     assert l2_data["timestamp_start"] == "2026-03-19T10:00:00+00:00"
+    assert l2_data["source_event_ids"] == ["screen_event_a", "screen_event_b"]
 
     timeline_lines = [line for line in timeline_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(timeline_lines) == 1
     timeline_entry = json.loads(timeline_lines[0])
     assert timeline_entry["event_id"] == "group_2026-03-19T10-00"
-    assert timeline_entry["title"] == "Grouped OCR work"
+    assert timeline_entry["title"] == "OCR parser work"
 
     state_l1_data = _load_json(state_l1)
     state_l2_data = _load_json(state_l2)
@@ -277,7 +281,7 @@ def test_processor_waits_for_full_l2_batch_before_grouping(
     assert len(timeline_lines) == 1
     timeline_entry = json.loads(timeline_lines[0])
     assert timeline_entry["event_id"] == "group_2026-03-19T10-00"
-    assert timeline_entry["title"] == "Grouped OCR work"
+    assert timeline_entry["title"] == "OCR parser work"
 
 
 def test_processor_pipeline_creates_l1_l2_notes_and_state(
@@ -346,7 +350,7 @@ def test_processor_pipeline_creates_l1_l2_notes_and_state(
     assert state_l3.exists()
 
     l2_data = _load_json(l2_path)
-    assert l2_data["summary"] == "Grouped edits around OCR parsing."
+    assert l2_data["summary"] == "Cluster of related OCR parser activity."
     assert l2_data["timestamp_start"] == "2026-03-19T10:00:00+00:00"
 
     model = _load_json(user_model_path)

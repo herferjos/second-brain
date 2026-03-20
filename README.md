@@ -6,12 +6,14 @@ Local capture pipeline: record microphone audio, capture the screen, send both t
 
 Exocort is a modular system of **capture agents** and a **collector**:
 
-| Component | Role |
-|-----------|------|
-| **exocort-audio** | Captures mic, segments speech with VAD, writes WAV to a temp spool, uploads each segment to the collector. |
-| **exocort-screen** | Captures the primary display at a configurable FPS and uploads each new frame to the collector. |
-| **exocort-collector** | HTTP server that receives audio and screen uploads, forwards them to endpoints defined in `config.json`, and writes API responses to a vault. |
+
+| Component             | Role                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **exocort-audio**     | Captures mic, segments speech with VAD, writes WAV to a temp spool, uploads each segment to the collector.                                                          |
+| **exocort-screen**    | Captures the primary display at a configurable FPS and uploads each new frame to the collector.                                                                     |
+| **exocort-collector** | HTTP server that receives audio and screen uploads, forwards them to endpoints defined in `config.json`, and writes API responses to a vault.                       |
 | **exocort-processor** | Reads the vault and compacts it into layered memory: L1 clean events, L2 grouped timeline entries, L3 Obsidian-style notes/user model, and optional L4 reflections. |
+
 
 Processing (transcription, OCR, etc.) is done by **external services**; the collector only routes requests and stores results. See [Data flow](docs/data-flow.md) for details.
 
@@ -59,7 +61,7 @@ cp .env.example .env
 Important variables:
 
 - **Runner**: `COLLECTOR_ENABLED`, `AUDIO_CAPTURE_ENABLED`, `SCREEN_CAPTURE_ENABLED` (each `1` or `0`) control which components the `exocort` runner starts.
-- **Capture agents**: `COLLECTOR_AUDIO_URL`, `COLLECTOR_SCREEN_URL` (where to POST), plus `AUDIO_CAPTURE_*` / `SCREEN_CAPTURE_*` (see `.env.example`).
+- **Capture agents**: `COLLECTOR_AUDIO_URL`, `COLLECTOR_SCREEN_URL` (where to POST), plus `AUDIO_CAPTURE_`* / `SCREEN_CAPTURE_*` (see `.env.example`).
 - **Collector**: `COLLECTOR_ENABLED`, `COLLECTOR_HOST`, `COLLECTOR_PORT`, `COLLECTOR_CONFIG`, `COLLECTOR_TMP_DIR`, `COLLECTOR_VAULT_DIR`.
 
 Temp dirs are per-component under `tmp/` (e.g. `./tmp/audio`, `./tmp/screen`, `./tmp/collector`). `tmp/` and `vault/` are in `.gitignore`.
@@ -79,12 +81,14 @@ cp config/config.json.example config/config.json
 
 Per-endpoint fields:
 
-| Field | Description |
-|-------|-------------|
-| `url` | HTTP endpoint URL |
-| `method`, `timeout`, `headers` | Optional; same as before |
-| `format` | Adapter code: `default` (multipart file only) or `openai` (OpenAI-style STT/OCR) |
-| `body` | Extra form/JSON keys sent with the request (e.g. `model`, `prompt`). The file is attached separately; use `prompt` to instruct transcription/description. |
+
+| Field                          | Description                                                                                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`                          | HTTP endpoint URL                                                                                                                                         |
+| `method`, `timeout`, `headers` | Optional; same as before                                                                                                                                  |
+| `format`                       | Adapter code: `default` (multipart file only) or `openai` (OpenAI-style STT/OCR)                                                                          |
+| `body`                         | Extra form/JSON keys sent with the request (e.g. `model`, `prompt`). The file is attached separately; use `prompt` to instruct transcription/description. |
+
 
 Example: one endpoint per type (e.g. OpenAI for audio, local for screen):
 
@@ -174,12 +178,14 @@ Entry points (see `pyproject.toml`): `exocort` (runner), `exocort-collector`, `e
 
 ## Data locations
 
-| Data | Location |
-|------|----------|
-| Audio segments (before upload) | `AUDIO_CAPTURE_SPOOL_DIR` (default `./tmp/audio`) — removed after successful upload |
-| Collector temp files | `COLLECTOR_TMP_DIR` (default `./tmp/collector`) — removed after forward and vault write |
-| Persisted API responses | `COLLECTOR_VAULT_DIR` (default `./vault`) — `vault/{date}/{timestamp}_audio_{id}.json` etc. |
-| Processor outputs | `PROCESSOR_OUT_DIR` (default `./vault/processed`) — `l1/`, `l2/`, `timeline/`, `notes/`, `user_model.json`, `reflections/`, plus `state/` |
+
+| Data                           | Location                                                                                                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Audio segments (before upload) | `AUDIO_CAPTURE_SPOOL_DIR` (default `./tmp/audio`) — removed after successful upload                                                       |
+| Collector temp files           | `COLLECTOR_TMP_DIR` (default `./tmp/collector`) — removed after forward and vault write                                                   |
+| Persisted API responses        | `COLLECTOR_VAULT_DIR` (default `./vault`) — `vault/{date}/{timestamp}_audio_{id}.json` etc.                                               |
+| Processor outputs              | `PROCESSOR_OUT_DIR` (default `./vault/processed`) — `l1/`, `l2/`, `timeline/`, `notes/`, `user_model.json`, `reflections/`, plus `state/` |
+
 
 See [docs/data-flow.md](docs/data-flow.md) for the full picture.
 

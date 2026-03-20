@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from .config import HOST, PORT
 from .ocr import ocr_image_path
@@ -36,4 +36,4 @@ async def process_image(
 
 def main() -> None:
     import uvicorn
-    uvicorn.run("src.app:app", host=HOST, port=PORT, reload=False)
+    uvicorn.run("src.app:app", host=HOST, port=PORT, reload=True)

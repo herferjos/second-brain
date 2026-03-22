@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,17 +16,15 @@ def _vault_dir() -> Path:
 
 def write_vault_record(
     id_: str,
-    timestamp_iso: str,
     text: str,
 ) -> Path:
-    """Write one JSON record to vault/raw/{id}.json."""
+    """Write one JSON record to vault/raw/{id}."""
     root = _vault_dir()
     root.mkdir(parents=True, exist_ok=True)
-    name = f"{id_}.json"
-    path = root / name
+    path = root / id_
     record = {
         "id": id_,
-        "timestamp": timestamp_iso,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "text": text,
     }
     path.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")

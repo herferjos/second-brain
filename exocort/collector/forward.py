@@ -48,6 +48,6 @@ def forward_upload(
         else:
             log.info("Forwarded | url=%s | status=%d", endpoint.url, r.status_code)
         return parsed.ok, parsed.status, (parsed.parsed_text or "").strip()
-    except Exception as e:
+    except Exception:
         log.exception("Forward failed | url=%s", endpoint.url)
         return False, 0, ""

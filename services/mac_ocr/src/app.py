@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import gettempdir
+from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from .config import HOST, PORT
 from .ocr import ocr_image_path
@@ -20,14 +21,11 @@ def health() -> dict[str, object]:
 @app.post("/ocr")
 async def process_image(
     file: UploadFile = File(...),
-    mode: str = Form("fast"),
 ) -> dict[str, object]:
-    suffix = Path(file.filename or "image.jpg").suffix or ".jpg"
-    with NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        path = Path(tmp.name)
+    path = Path(gettempdir()) / f"{uuid4().hex}.jpg"
     try:
         path.write_bytes(await file.read())
-        return ocr_image_path(path, mode=mode)
+        return ocr_image_path(path)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     finally:

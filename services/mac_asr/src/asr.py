@@ -19,6 +19,11 @@ _FOUNDATION = None
 _SPEECH = None
 
 
+@dataclass(frozen=True)
+class Transcription:
+    text: str
+
+
 def _foundation():
     global _FOUNDATION
     if _FOUNDATION is None:
@@ -44,7 +49,6 @@ def _is_no_speech_error(error_message: str) -> bool:
 
 
 def ensure_speech_permission(prompt: bool = False) -> bool:
-    import threading
     Speech = _speech()
     status = int(Speech.SFSpeechRecognizer.authorizationStatus())
     authorized = int(getattr(Speech, "SFSpeechRecognizerAuthorizationStatusAuthorized", 3))
@@ -97,14 +101,6 @@ def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Trans
     if recognizer is None:
         raise RuntimeError(f"Speech recognizer is not available for locale '{locale_id}'.")
 
-    resolved_locale = locale_id
-    try:
-        recognizer_locale = recognizer.locale()
-        if recognizer_locale is not None:
-            resolved_locale = str(recognizer_locale.localeIdentifier() or resolved_locale)
-    except Exception:
-        pass
-
     request = Speech.SFSpeechURLRecognitionRequest.alloc().initWithURL_(
         objc.lookUpClass("NSURL").fileURLWithPath_(str(path))
     )
@@ -134,7 +130,7 @@ def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Trans
     if state["error"] and not state["text"]:
         raise RuntimeError(state["error"])
 
-    return Transcription(text=str(state["text"]).strip(), locale=resolved_locale)
+    return Transcription(text=str(state["text"]).strip())
 
 
 def _supported_locale_ids() -> list[str]:
@@ -182,9 +178,6 @@ def resolve_locale(detected_code: str | None, explicit: str | None) -> str:
     configured = (LOCALE or "").strip()
     if configured.lower() == "auto":
         configured = ""
-
-    if explicit_locale:
-        return explicit_locale
 
     detected = (detected_code or "").strip().lower()
     if not detected:

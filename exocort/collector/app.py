@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 
 from fastapi import FastAPI, File, UploadFile
 
@@ -33,29 +32,24 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Exocort Collector", lifespan=lifespan)
 
 
-def _now() -> str:
-    now = datetime.now(timezone.utc)
-    return now.isoformat()
-
-
 @app.post("/api/audio")
 async def api_audio(
     file: UploadFile = File(...),
 ):
     """Receive audio from the capturer, forward it, and store the transcription."""
     config = get_config()
-    body = await file.read()
-    record_id = new_record_id()
-    filename = file.filename or "audio.wav"
-    content_type = file.content_type or "audio/wav"
-
     if config.audio is None:
         return {"ok": True, "forwarded": 0, "message": "No audio endpoint configured"}
 
-    timestamp_iso = _now()
-    ep = config.audio
-    ok, status, text = forward_upload(ep, body, filename, content_type, stream_type="audio")
-
+    body = await file.read()
+    record_id = new_record_id()
+    ok, status, text = forward_upload(
+        config.audio,
+        body,
+        "audio.wav",
+        "audio/wav",
+        stream_type="audio",
+    )
     if not ok:
         log.warning(
             "Audio forward failed; skipping vault write | id=%s | status=%d",
@@ -68,12 +62,11 @@ async def api_audio(
             "status": status,
             "error": "audio_forward_failed",
         }
-
     if not text:
         log.info(
             "Audio response empty; skipping vault write | id=%s | url=%s",
             record_id,
-            ep.url,
+            config.audio.url,
         )
         return {
             "ok": True,
@@ -82,13 +75,9 @@ async def api_audio(
             "status": status,
         }
 
-    vault_path = write_vault_record(record_id, timestamp_iso, text)
+    vault_path = write_vault_record(record_id, text)
     log.info("Vault wrote | path=%s", vault_path)
-    return {
-        "ok": True,
-        "forwarded": 1,
-        "id": record_id,
-    }
+    return {"ok": True, "forwarded": 1, "id": record_id}
 
 
 @app.post("/api/screen")
@@ -97,17 +86,18 @@ async def api_screen(
 ):
     """Receive screen captures, forward them, and store the extracted text."""
     config = get_config()
-    body = await file.read()
-    record_id = new_record_id()
-    filename = file.filename or "screen.jpg"
-    content_type = file.content_type or "image/jpeg"
-
     if config.screen is None:
         return {"ok": True, "forwarded": 0, "message": "No screen endpoint configured"}
 
-    timestamp_iso = _now()
-    ep = config.screen
-    ok, status, text = forward_upload(ep, body, filename, content_type, stream_type="screen")
+    body = await file.read()
+    record_id = new_record_id()
+    ok, status, text = forward_upload(
+        config.screen,
+        body,
+        "screen.jpg",
+        "image/jpeg",
+        stream_type="screen",
+    )
     if not ok:
         log.warning(
             "Screen forward failed; skipping vault write | id=%s | status=%d",
@@ -124,7 +114,7 @@ async def api_screen(
         log.info(
             "Screen response empty; skipping vault write | id=%s | url=%s",
             record_id,
-            ep.url,
+            config.screen.url,
         )
         return {
             "ok": True,
@@ -132,13 +122,10 @@ async def api_screen(
             "empty": True,
             "status": status,
         }
-    vault_path = write_vault_record(record_id, timestamp_iso, text)
+
+    vault_path = write_vault_record(record_id, text)
     log.info("Vault wrote | path=%s", vault_path)
-    return {
-        "ok": True,
-        "forwarded": 1,
-        "id": record_id,
-    }
+    return {"ok": True, "forwarded": 1, "id": record_id}
 
 
 def main() -> None:

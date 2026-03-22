@@ -27,7 +27,6 @@ class ParsedResponse:
 
     ok: bool
     status: int
-    raw_body: str
     parsed_text: str | None = None
 
 

@@ -49,6 +49,5 @@ class GeminiAdapter(FormatAdapter):
         return ParsedResponse(
             ok=ok,
             status=status_code,
-            raw_body=raw_body,
             parsed_text=parsed_text,
         )

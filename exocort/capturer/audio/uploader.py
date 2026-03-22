@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import logging
-import time
 import wave
 from pathlib import Path
 from threading import Lock
@@ -25,8 +23,7 @@ class SpoolUploader:
         self,
         segment: AudioSegment,
     ) -> Path:
-        seg_id = uuid4().hex
-        filename = f"{int(time.time() * 1000)}_{seg_id}.wav"
+        filename = f"{uuid4().hex}.wav"
         path = self.settings.spool_dir / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         with wave.open(str(path), "wb") as wav_file:
@@ -34,19 +31,6 @@ class SpoolUploader:
             wav_file.setsampwidth(2)
             wav_file.setframerate(segment.sample_rate)
             wav_file.writeframes(segment.pcm_bytes)
-        meta_path = path.with_suffix(".wav.meta.json")
-        meta_path.write_text(
-            json.dumps(
-                {
-                    "duration_ms": segment.duration_ms,
-                    "vad_reason": segment.ended_by,
-                    "source": segment.source,
-                    "original_sample_rate": segment.original_sample_rate,
-                    "original_channels": segment.original_channels,
-                }
-            ),
-            encoding="utf-8",
-        )
         return path
 
     def flush_pending(self, max_files: int) -> None:
@@ -66,31 +50,12 @@ class SpoolUploader:
             )
             return remove_wav_and_meta(wav_path, self.logger)
 
-        meta_path = wav_path.with_suffix(".wav.meta.json")
-        meta_data = {}
-        if meta_path.exists():
-            try:
-                meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
-            except Exception:
-                meta_data = {}
-
-        segment_id = wav_path.stem
         try:
             with wav_path.open("rb") as f:
                 files = {"file": (wav_path.name, f, "audio/wav")}
-                data = {
-                    "segment_id": segment_id,
-                    "sample_rate": str(self.settings.audio.target_sample_rate),
-                    "client_source": "audio_capturer",
-                    "source": str(meta_data.get("source", "mic")),
-                    "duration_ms": str(meta_data.get("duration_ms", "")),
-                    "vad_reason": str(meta_data.get("vad_reason", "")),
-                    "rms": str(rms),
-                }
                 response = requests.post(
                     self.settings.api_audio_url,
                     files=files,
-                    data=data,
                     timeout=self.settings.request_timeout_s,
                 )
         except Exception:

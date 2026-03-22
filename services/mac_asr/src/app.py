@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from typing import Annotated
+from tempfile import gettempdir
+from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from starlette.responses import Response
@@ -31,10 +31,31 @@ def health() -> dict[str, object]:
     }
 
 
+def _resolve_request_locale(path: Path, language: str | None) -> str:
+    explicit_language = (language or "").strip()
+    explicit_language_lower = explicit_language.lower()
+    detect_requested = (
+        explicit_language_lower == "auto" or ((LOCALE or "").strip().lower() == "auto")
+    )
+    if explicit_language_lower == "auto":
+        explicit_language = ""
+    detected_code = None
+    if not explicit_language and detect_requested:
+        detected_code, _ = detect_language(path)
+    return resolve_locale(detected_code, explicit_language)
+
+
+def _transcription_text(result: object) -> str:
+    text = str(getattr(result, "text", "") or "").strip()
+    if not text and hasattr(result, "to_dict"):
+        text = str(result.to_dict().get("text", "") or "").strip()
+    return text
+
+
 @app.post("/v1/audio/transcriptions", response_model=None)
 async def transcribe_audio(
     file: UploadFile = File(...),
-    language: Annotated[str | None, Form()] = None,
+    language: str | None = Form(None),
 ) -> object:
     if not ensure_speech_permission(prompt=PROMPT_PERMISSION):
         raise HTTPException(
@@ -42,30 +63,17 @@ async def transcribe_audio(
             detail="Speech recognition permission is required.",
         )
 
-    suffix = Path(file.filename or "audio.wav").suffix or ".wav"
-    with NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        path = Path(tmp.name)
+    path = Path(gettempdir()) / f"{uuid4().hex}.wav"
     try:
         path.write_bytes(await file.read())
-        explicit_language = (language or "").strip()
-        detect_requested = (
-            (explicit_language.lower() == "auto")
-            or ((LOCALE or "").strip().lower() == "auto")
-        )
-        if explicit_language.lower() == "auto":
-            explicit_language = ""
-        detected_code = None
-        if not explicit_language and detect_requested:
-            detected_code, _ = detect_language(path)
-        locale = resolve_locale(detected_code, explicit_language)
+        locale = _resolve_request_locale(path, language)
         try:
             result = transcribe_audio_file(
                 path,
                 locale=locale,
                 timeout_s=TRANSCRIPTION_TIMEOUT_S,
             )
-            payload = result.to_dict() if hasattr(result, "to_dict") else {}
-            text = str(payload.get("text") or getattr(result, "text", "") or "").strip()
+            text = _transcription_text(result)
             if not text:
                 log.info(
                     "Empty transcription | locale=%s | file=%s",
@@ -74,8 +82,8 @@ async def transcribe_audio(
                 )
                 return Response(status_code=204)
             return {"text": text}
-        except RuntimeError as e:
-            if _is_no_speech_error(str(e)):
+        except RuntimeError as exc:
+            if _is_no_speech_error(str(exc)):
                 log.info(
                     "No speech detected | locale=%s | file=%s",
                     locale,

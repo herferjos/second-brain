@@ -37,6 +37,5 @@ class DefaultAdapter(FormatAdapter):
         return ParsedResponse(
             ok=ok,
             status=status_code,
-            raw_body=raw_body,
             parsed_text=raw_body if raw_body and ok else None,
         )

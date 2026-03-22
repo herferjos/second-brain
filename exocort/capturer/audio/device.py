@@ -185,10 +185,8 @@ def wav_rms(path: Path) -> int:
 
 
 def remove_wav_and_meta(path: Path, logger: logging.Logger) -> bool:
-    meta = path.with_suffix(".wav.meta.json")
     try:
         path.unlink(missing_ok=True)
-        meta.unlink(missing_ok=True)
         return True
     except OSError:
         logger.exception("Failed to remove file | file=%s", path.name)

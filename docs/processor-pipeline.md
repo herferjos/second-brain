@@ -241,7 +241,12 @@ Generic adapters use `transform_options` to define how inputs and outputs should
 Common fields:
 
 - `input_mode`: `raw`, `payload`, or `envelope`
+- `input_projection`: optional projection applied before the adapter call, for example `record_text` or `field`
+- `input_field`: dotted field path used when `input_projection = "field"`
+- `input_projection = { ... }`: field map projection for building a smaller object per input item
 - `input_key`: key used in the request payload
+- `output_map_source`: source mode used by `output_map`; defaults to `raw`
+- `output_map`: optional mapping table used to enrich persisted rows from the original input
 - `result_key`: key expected in the adapter response
 - `kind`: envelope kind for emitted artifacts
 - `id_field`: payload field used as `item_id`
@@ -261,14 +266,24 @@ outputs = [{ name = "items", collection = "events" }]
 
 [processor.stages.transform_options]
 input_mode = "raw"
+input_projection = "record_text"
 input_key = "records"
-result_key = "items"
-kind = "event"
-id_field = "event_id"
-date_field = "date"
-timestamp_field = "timestamp"
-source_id_field = "source_raw_event_id"
+output_map_source = "raw"
+
+[processor.stages.transform_options.output_map]
+event_id = "input:id"
+timestamp = "input:timestamp"
+date = "date_from:input:timestamp"
+source_raw_event_id = "input:id"
+"metadata.raw" = "input"
 ```
+
+`output_map` also supports structured operations for generic post-processing, including:
+
+- `slug`: derive ids from row or input fields
+- `match_items`: join a reduce output row with matching batch items by id
+- `min_path_from_matches` and `max_path_from_matches`: derive aggregate values such as batch start/end timestamps
+- `date_from_path`: compute a `YYYY-MM-DD` date from any timestamp field
 
 ## Design Guidelines
 

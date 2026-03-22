@@ -7,6 +7,8 @@ import multiprocessing
 import time
 from pathlib import Path
 
+from exocort import settings
+
 from .adapters import InputItem, execute_stage_adapter
 from .artifacts import markdown_filename, render_markdown
 from .config import AppConfig, load_app_config
@@ -190,17 +192,23 @@ def _worker_loop(name: str, config: ProcessorConfig, stage: StageDefinition, cli
         time.sleep(config.poll_interval_s)
 
 
+def _configure_worker_logging() -> None:
+    logging.getLogger().setLevel(settings.log_level())
+
+
 def _build_worker_client(app_config: AppConfig, semaphore: multiprocessing.Semaphore) -> SupportsLLMClient:
     return SemaphoreLLMClient(ProcessorLLMClient(app_config.llm), semaphore)
 
 
 def _stage_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multiprocessing.Semaphore, stage_name: str) -> None:
+    _configure_worker_logging()
     stage = next(stage for stage in config.stages if stage.name == stage_name)
     client = _build_worker_client(app_config, semaphore)
     _worker_loop(stage.name, config, stage, client)
 
 
 def _single_loop_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multiprocessing.Semaphore) -> None:
+    _configure_worker_logging()
     client = _build_worker_client(app_config, semaphore)
     while True:
         try:

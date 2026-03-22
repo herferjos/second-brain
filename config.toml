@@ -88,27 +88,21 @@ prompt = """You transform raw capturer records into normalized event objects.
 Return valid JSON only.
 
 Input:
-- `events`: array of raw capturer records
+- `events`: array of extracted text strings, one per raw capturer record
 
 Output:
 - Return exactly one normalized object per input item under `events`
 
 For each output object, include:
-- `event_id`
-- `timestamp`
 - `title`
 - `description`
 - `content`
-- `meta`
-- optionally `source_type`, `app_name`, `context`
 
 Requirements:
 - Preserve the original event ordering.
-- Keep `timestamp` aligned with the source event unless correction is clearly justified by the input.
 - `title` must be short and specific.
 - `description` must be one concise summary sentence.
-- `content` should contain the most useful cleaned textual content from the raw event.
-- `meta` should remain a structured object.
+- `content` should contain the most useful cleaned textual content from the input.
 - Do not invent facts that are not supported by the input.
 - If the input is noisy or sparse, still return the best faithful normalized event.
 
@@ -116,15 +110,9 @@ Return shape:
 {
   "events": [
     {
-      "event_id": "string",
-      "timestamp": "ISO-8601 string",
       "title": "string",
       "description": "string",
-      "content": "string",
-      "meta": {},
-      "source_type": "string",
-      "app_name": "string",
-      "context": {}
+      "content": "string"
     }
   ]
 }"""
@@ -135,7 +123,7 @@ upstream = []
 archive = { base_dir = "out", path = "l0_processed_raw", format = "json" }
 transform_adapter = "llm_map"
 concurrency = 1
-transform_options = { input_mode = "raw", input_key = "events" }
+transform_options = { input_mode = "raw", input_projection = "record_text", input_key = "events", output_map_source = "raw", output_map = { event_id = "input:id", timestamp = "input:timestamp", date = "date_from:input:timestamp", source_raw_event_id = "input:id", "metadata.raw" = "input" } }
 outputs = [
   { name = "events", collection = { base_dir = "out", path = "l1", format = "json" }, projection = "none", result_key = "events", kind = "event", id_field = "event_id", date_field = "date", timestamp_field = "timestamp", source_id_field = "source_raw_event_id" },
 ]
@@ -151,65 +139,32 @@ prompt = """You transform normalized events into a cleaned timeline and grouped 
 Return valid JSON only.
 
 Input:
-- `events`: array of normalized event objects
+- `events`: array of cleaned event objects containing only `event_id`, `title`, and `description`
 
 Output:
-- `cleaned_timeline`: ordered timeline items
-- `super_events`: grouped higher-level units spanning one or more events
-
-Each timeline item should include:
-- `timeline_event_id`
-- `title`
-- `description`
-- `timestamp_start`
-- `timestamp_end`
-- `source_event_ids`
-- optionally `super_event_id`
+- `super_events`: grouped higher-level units spanning one or more related events
 
 Each super event should include:
-- `super_event_id`
 - `title`
 - `description`
-- `timestamp_start`
-- `timestamp_end`
 - `source_event_ids`
-- `timeline_event_ids`
-- optionally `grouping_dimensions`, `category`, `subject`
 
 Requirements:
-- Keep the timeline chronologically ordered.
-- Group events when they clearly belong to the same coherent activity, task, or session.
+- Group events when they clearly belong to the same coherent activity, task, category, or session.
 - Use precise, compact titles.
 - `source_event_ids` must reference real input event ids.
 - Avoid over-grouping unrelated events.
 - If grouping is weak, prefer smaller and more faithful groups.
-- Do not invent unsupported categories or subjects.
+- Base the grouping only on the provided event ids, titles, and descriptions.
+- Do not invent unsupported facts.
 
 Return shape:
 {
-  "cleaned_timeline": [
-    {
-      "timeline_event_id": "string",
-      "title": "string",
-      "description": "string",
-      "timestamp_start": "ISO-8601 string",
-      "timestamp_end": "ISO-8601 string",
-      "source_event_ids": ["event_id"],
-      "super_event_id": "string"
-    }
-  ],
   "super_events": [
     {
-      "super_event_id": "string",
       "title": "string",
       "description": "string",
-      "timestamp_start": "ISO-8601 string",
-      "timestamp_end": "ISO-8601 string",
-      "source_event_ids": ["event_id"],
-      "timeline_event_ids": ["timeline_event_id"],
-      "grouping_dimensions": ["topic"],
-      "category": "string",
-      "subject": "string"
+      "source_event_ids": ["event_id"]
     }
   ]
 }"""
@@ -220,9 +175,8 @@ archive = { base_dir = "out", path = "l1_processed", format = "json" }
 upstream = [{ base_dir = "vault", path = ".", format = "json" }]
 transform_adapter = "llm_reduce"
 concurrency = 1
-transform_options = { input_mode = "payload", input_key = "events" }
+transform_options = { input_mode = "payload", input_projection = { event_id = "event_id", title = "title", description = "description" }, input_key = "events", output_map_source = "payload", output_map = { super_event_id = { op = "slug", from = "row", path = "title", prefix = "super_" }, timestamp_start = { op = "min_path_from_matches", ids_from_row = "source_event_ids", match_id_path = "event_id", value_path = "timestamp" }, timestamp_end = { op = "max_path_from_matches", ids_from_row = "source_event_ids", match_id_path = "event_id", value_path = "timestamp" }, date = { op = "date_from_path", from = "row", path = "timestamp_start" }, events = { op = "match_items", ids_from_row = "source_event_ids", match_id_path = "event_id", fields = { event_id = "event_id", title = "title", description = "description" } } } }
 outputs = [
-  { name = "timeline_events", collection = { base_dir = "out", path = "timeline_events", format = "json" }, projection = "jsonl_day", projection_target = { base_dir = "out", path = "timeline", format = "jsonl" }, result_key = "cleaned_timeline", kind = "timeline_event", id_field = "timeline_event_id", date_field = "date", timestamp_field = "timestamp_start", source_id_field = "source_event_ids" },
   { name = "super_events", collection = { base_dir = "out", path = "l2", format = "json" }, projection = "none", result_key = "super_events", kind = "super_event", id_field = "super_event_id", date_field = "date", timestamp_field = "timestamp_start", source_id_field = "source_event_ids" },
 ]
 
@@ -237,29 +191,25 @@ prompt = """You transform super-events into inbox notes.
 Return valid JSON only.
 
 Input:
-- `super_events`: array of grouped activity objects
+- `super_events`: array of grouped activity objects with the super-event `title`, `description`, and member `events` containing `title`, `description`, and `content`
 
 Output:
 - `notes`: exactly one note per input super-event
 
 Each note should include:
-- `note_id`
-- `timestamp`
-- `date`
 - `title`
 - `description`
 - `content`
 - `category`
 - `subject`
-- `super_event_id`
-- `source_event_ids`
 
 Requirements:
 - Produce one note for each input super-event.
 - `title` should read like a useful personal note title.
 - `description` should be a short summary.
 - `content` should be a fuller, still concise note body based only on the input.
-- Preserve traceability fields exactly.
+- `category` should be a note type.
+- `subject` should capture the main theme or topic.
 - Do not invent facts, plans, or conclusions unsupported by the source material.
 - If the input is sparse, still emit a faithful minimal note.
 
@@ -267,27 +217,22 @@ Return shape:
 {
   "notes": [
     {
-      "note_id": "string",
-      "timestamp": "ISO-8601 string",
-      "date": "YYYY-MM-DD",
       "title": "string",
       "description": "string",
       "content": "string",
       "category": "string",
-      "subject": "string",
-      "super_event_id": "string",
-      "source_event_ids": ["event_id"]
+      "subject": "string"
     }
   ]
 }"""
-batch_size = 15
-flush_threshold = 15
+batch_size = 1
+flush_threshold = 1
 flush_when_upstream_empty = true
 upstream = [{ base_dir = "out", path = "l1", format = "json" }]
 transform_adapter = "llm_reduce"
 concurrency = 1
-transform_options = { input_mode = "payload", input_key = "super_events" }
+transform_options = { input_mode = "payload", input_projection = { title = "title", description = "description", events = "events" }, input_key = "super_events", output_map_source = "payload", output_map = { note_id = { op = "slug", from = "row", path = "title", prefix = "note_" }, timestamp = "input:timestamp_start", date = "input:date", super_event_id = "input:super_event_id" } }
 outputs = [
-  { name = "notes", collection = { base_dir = "out", path = "notes", format = "json" }, projection = "none", result_key = "notes", kind = "inbox_note", id_field = "note_id", date_field = "date", timestamp_field = "timestamp", source_id_field = "source_event_ids" },
-  { name = "note_docs", collection = { base_dir = "out", path = "notes/inbox", format = "markdown" }, projection = "markdown_note", result_key = "notes", kind = "inbox_note", id_field = "note_id", date_field = "date", timestamp_field = "timestamp", source_id_field = "source_event_ids" },
+  { name = "notes", collection = { base_dir = "out", path = "notes", format = "json" }, projection = "none", result_key = "notes", kind = "inbox_note", id_field = "note_id", date_field = "date", timestamp_field = "timestamp" },
+  { name = "note_docs", collection = { base_dir = "out", path = "notes/inbox", format = "markdown" }, projection = "markdown_note", result_key = "notes", kind = "inbox_note", id_field = "note_id", date_field = "date", timestamp_field = "timestamp" },
 ]

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import copy
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .models import ArtifactEnvelope, OutputDefinition, ProcessorConfig, StageDefinition
-from .utils import date_from_timestamp, normalize_list, safe_id
+from .utils import date_from_timestamp, extract_record_text, normalize_list, safe_id
 
 
 @dataclass
@@ -44,6 +46,162 @@ def _input_payload(item: InputItem, mode: str) -> Any:
             raise ValueError("envelope input_mode requires artifact inputs")
         return item.envelope.to_dict()
     raise ValueError(f"Unsupported input_mode {mode!r}")
+
+
+def _lookup_path(value: Any, path: str) -> Any:
+    current = value
+    for part in path.split("."):
+        if isinstance(current, dict):
+            if part not in current:
+                return None
+            current = current[part]
+            continue
+        if isinstance(current, list):
+            try:
+                index = int(part)
+            except ValueError:
+                return None
+            if index < 0 or index >= len(current):
+                return None
+            current = current[index]
+            continue
+        return None
+    return current
+
+
+def _assign_path(target: dict[str, Any], path: str, value: Any) -> None:
+    current = target
+    parts = path.split(".")
+    for part in parts[:-1]:
+        child = current.get(part)
+        if not isinstance(child, dict):
+            child = {}
+            current[part] = child
+        current = child
+    current[parts[-1]] = value
+
+
+def _project_input_value(item: InputItem, mode: str, options: dict[str, Any], label: str) -> Any:
+    value = _input_payload(item, mode)
+    projection = options.get("input_projection")
+    if projection is None:
+        return value
+    if isinstance(projection, str):
+        projection = projection.strip()
+    if not projection or projection == "none":
+        return value
+    if projection == "record_text":
+        record = _require_dict(value, f"{label}.input")
+        return extract_record_text(record)
+    if projection == "field":
+        field_path = _require_str(options.get("input_field"), f"{label}.transform_options.input_field")
+        return copy.deepcopy(_lookup_path(value, field_path))
+    if isinstance(projection, dict):
+        projected: dict[str, Any] = {}
+        for target_key, source_path in projection.items():
+            projected[str(target_key)] = copy.deepcopy(_lookup_path(value, _require_str(source_path, f"{label}.input_projection[{target_key}]")))
+        return projected
+    raise ValueError(f"Unsupported input_projection {projection!r} for stage {label}")
+
+
+def _mapping_source(item: InputItem, mode: str) -> Any:
+    return _input_payload(item, mode)
+
+
+def _matched_batch_items(
+    row: dict[str, Any],
+    batch_source: list[Any],
+    ids_path: str,
+    match_id_path: str,
+) -> list[Any]:
+    wanted_ids = [str(value).strip() for value in normalize_list(_lookup_path(row, ids_path)) if str(value).strip()]
+    index: dict[str, Any] = {}
+    for candidate in batch_source:
+        if not isinstance(candidate, dict):
+            continue
+        candidate_id = _lookup_path(candidate, match_id_path)
+        candidate_key = str(candidate_id).strip() if candidate_id is not None else ""
+        if candidate_key:
+            index[candidate_key] = candidate
+    matched: list[Any] = []
+    for wanted_id in wanted_ids:
+        candidate = index.get(wanted_id)
+        if candidate is not None:
+            matched.append(candidate)
+    return matched
+
+
+def _project_fields(value: Any, fields: Any, label: str) -> Any:
+    if isinstance(fields, dict):
+        projected: dict[str, Any] = {}
+        for target_key, source_path in fields.items():
+            projected[str(target_key)] = copy.deepcopy(_lookup_path(value, _require_str(source_path, f"{label}.{target_key}")))
+        return projected
+    if isinstance(fields, list):
+        projected = {}
+        for field in fields:
+            field_name = _require_str(field, label)
+            projected[field_name] = copy.deepcopy(_lookup_path(value, field_name))
+        return projected
+    return copy.deepcopy(value)
+
+
+def _resolve_mapping_value(expression: Any, source: Any, row: dict[str, Any], batch_source: list[Any]) -> Any:
+    if not isinstance(expression, str):
+        if not isinstance(expression, dict):
+            return copy.deepcopy(expression)
+        op = _require_str(expression.get("op"), "output_map.op")
+        if op == "slug":
+            from_mode = str(expression.get("from") or "row").strip()
+            base = row if from_mode == "row" else source
+            value = _lookup_path(base, _require_str(expression.get("path"), "output_map.path"))
+            prefix = str(expression.get("prefix") or "")
+            suffix = str(expression.get("suffix") or "")
+            return f"{prefix}{safe_id(str(value) if value is not None else '')}{suffix}"
+        if op == "match_items":
+            ids_path = _require_str(expression.get("ids_from_row"), "output_map.ids_from_row")
+            match_id_path = _require_str(expression.get("match_id_path"), "output_map.match_id_path")
+            matches = _matched_batch_items(row, batch_source, ids_path, match_id_path)
+            fields = expression.get("fields")
+            return [_project_fields(item, fields, "output_map.fields") for item in matches]
+        if op in {"min_path_from_matches", "max_path_from_matches"}:
+            ids_path = _require_str(expression.get("ids_from_row"), "output_map.ids_from_row")
+            match_id_path = _require_str(expression.get("match_id_path"), "output_map.match_id_path")
+            value_path = _require_str(expression.get("value_path"), "output_map.value_path")
+            matches = _matched_batch_items(row, batch_source, ids_path, match_id_path)
+            values = [str(value).strip() for item in matches for value in [_lookup_path(item, value_path)] if str(value).strip()]
+            if not values:
+                return ""
+            return min(values) if op == "min_path_from_matches" else max(values)
+        if op == "date_from_path":
+            from_mode = str(expression.get("from") or "row").strip()
+            base = row if from_mode == "row" else source
+            value = _lookup_path(base, _require_str(expression.get("path"), "output_map.path"))
+            return date_from_timestamp(str(value) if value is not None else None)
+        raise ValueError(f"Unsupported output_map op {op!r}")
+    if expression == "input":
+        return copy.deepcopy(source)
+    if expression.startswith("input:"):
+        return copy.deepcopy(_lookup_path(source, expression[len("input:") :]))
+    if expression.startswith("date_from:input:"):
+        value = _lookup_path(source, expression[len("date_from:input:") :])
+        return date_from_timestamp(str(value) if value is not None else None)
+    if expression.startswith("literal:"):
+        return expression[len("literal:") :]
+    return expression
+
+
+def _apply_output_map(row: dict[str, Any], item: InputItem, items: list[InputItem], stage: StageDefinition) -> dict[str, Any]:
+    output_map = stage.transform_options.get("output_map")
+    if not isinstance(output_map, dict) or not output_map:
+        return row
+    source_mode = str(stage.transform_options.get("output_map_source") or "raw").strip()
+    source = _mapping_source(item, source_mode)
+    batch_source = [_mapping_source(candidate, source_mode) for candidate in items]
+    mapped = copy.deepcopy(row)
+    for target_path, expression in output_map.items():
+        _assign_path(mapped, str(target_path), _resolve_mapping_value(expression, source, mapped, batch_source))
+    return mapped
 
 
 def _result_rows(result: dict[str, Any], result_key: str, label: str) -> list[dict[str, Any]]:
@@ -105,8 +263,9 @@ def _execute_llm(
     options = stage.transform_options
     input_mode = _require_str(options.get("input_mode"), f"{stage.name}.transform_options.input_mode")
     input_key = _require_str(options.get("input_key"), f"{stage.name}.transform_options.input_key")
-    payload = {input_key: [_input_payload(item, input_mode) for item in items]}
+    payload = {input_key: [_project_input_value(item, input_mode, options, stage.name) for item in items]}
     result = _require_dict(client.complete_json(stage.name, stage.prompt, payload), f"{stage.name}.response")
+    logging.info("%s LLM response: %s", stage.name, result)
 
     outputs: dict[str, list[ArtifactEnvelope]] = {}
     shared_source_paths = [str(item.path) for item in items]
@@ -117,12 +276,14 @@ def _execute_llm(
         output_source_paths = shared_source_paths if not expect_per_input else []
         envelopes: list[ArtifactEnvelope] = []
         for index, row in enumerate(rows):
+            item = items[index] if expect_per_input else items[0]
+            mapped_row = _apply_output_map(row, item, items, stage)
             source_paths = output_source_paths or [str(items[index].path)]
             envelopes.append(
                 _build_envelope(
                     stage=stage,
                     output=output,
-                    row=row,
+                    row=mapped_row,
                     source_paths=source_paths,
                     index=index,
                 )

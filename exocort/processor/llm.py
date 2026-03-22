@@ -68,33 +68,31 @@ def normalize_headers(headers: dict[str, str]) -> dict[str, str]:
 
 
 class SupportsLLMClient(Protocol):
-    def complete_json(self, prompt_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def complete_json(self, stage_name: str, prompt: str, payload: dict[str, Any]) -> dict[str, Any]:
         ...
 
 
 class ProcessorLLMClient:
-    def __init__(self, llm_config: LLMConfig, prompts: dict[str, str], timeout_s: float = 60.0) -> None:
+    def __init__(self, llm_config: LLMConfig, timeout_s: float = 60.0) -> None:
         self._config = llm_config
-        self._prompts = prompts
         self._timeout_s = timeout_s
 
-    def complete_json(self, prompt_key: str, payload: dict[str, Any]) -> dict[str, Any]:
-        text = self._complete(prompt_key, payload)
+    def complete_json(self, stage_name: str, prompt: str, payload: dict[str, Any]) -> dict[str, Any]:
+        text = self._complete(stage_name, prompt, payload)
         parsed = parse_json_payload(text)
         if isinstance(parsed, dict):
             return parsed
         return {"items": parsed}
 
-    def _complete(self, prompt_key: str, payload: dict[str, Any]) -> str:
+    def _complete(self, stage_name: str, prompt: str, payload: dict[str, Any]) -> str:
         import requests
 
         url = self._config.url
         if not url:
             raise RuntimeError("Processor LLM URL is not configured")
 
-        prompt = self._prompts.get(prompt_key) or prompt_key
         body = copy.deepcopy(self._config.body)
-        body["messages"] = build_prompt_payload(prompt_key, prompt, payload)
+        body["messages"] = build_prompt_payload(stage_name, prompt, payload)
 
         response = requests.post(
             url,
@@ -115,9 +113,9 @@ class SemaphoreLLMClient:
         self._inner = inner
         self._semaphore = semaphore
 
-    def complete_json(self, prompt_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def complete_json(self, stage_name: str, prompt: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._semaphore.acquire()
         try:
-            return self._inner.complete_json(prompt_key, payload)
+            return self._inner.complete_json(stage_name, prompt, payload)
         finally:
             self._semaphore.release()

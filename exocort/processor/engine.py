@@ -6,44 +6,48 @@ import logging
 import multiprocessing
 import time
 from pathlib import Path
-from typing import Any
 
 from .adapters import InputItem, execute_stage_adapter
-from .artifacts import note_path, render_note
+from .artifacts import markdown_filename, render_markdown
 from .config import AppConfig, load_app_config
 from .llm import ProcessorLLMClient, SemaphoreLLMClient, SupportsLLMClient
-from .models import ArtifactEnvelope, OutputDefinition, ProcessorConfig, StageDefinition
+from .models import ArtifactEnvelope, CollectionDefinition, OutputDefinition, ProcessorConfig, StageDefinition
 from .storage import (
-    collection_dir,
     list_collection_paths,
     load_artifact,
     load_state,
-    rewrite_timeline_day,
+    resolve_collection_dir,
+    rewrite_jsonl_day,
     save_state,
 )
-from .utils import atomic_write_json, atomic_write_text, canonical_path, ensure_parent, iter_json_files_recursive, load_json, pending_paths
+from .utils import atomic_write_json, atomic_write_text, canonical_path, ensure_parent, load_json, pending_paths
 
 
 def validate_pipeline(config: ProcessorConfig) -> None:
     execution_mode = config.execution_mode
     if execution_mode not in {"per_stage_worker", "single_loop"}:
         raise ValueError(f"Unsupported processor execution mode: {execution_mode!r}")
+    if not config.stages:
+        raise ValueError("Processor pipeline must define at least one enabled stage")
 
     seen_names: set[str] = set()
     for stage in config.stages:
         if stage.name in seen_names:
             raise ValueError(f"Duplicate processor stage name: {stage.name}")
         seen_names.add(stage.name)
-        if stage.input_collection not in config.collections:
-            raise ValueError(f"Stage {stage.name} references unknown input collection {stage.input_collection!r}")
+        if not stage.outputs:
+            raise ValueError(f"Stage {stage.name} must define at least one output")
+        if stage.transform_adapter != stage.type and stage.transform_adapter != "noop":
+            raise ValueError(
+                f"Stage {stage.name} transform_adapter must match type or be 'noop'; got {stage.transform_adapter!r}"
+            )
+        if stage.type.startswith("llm_") and not stage.prompt:
+            raise ValueError(f"Stage {stage.name} requires prompt")
         for output in stage.outputs:
-            if output.collection not in config.collections:
-                raise ValueError(f"Stage {stage.name} references unknown output collection {output.collection!r}")
-        if stage.archive_collection and stage.archive_collection not in config.collections:
-            raise ValueError(f"Stage {stage.name} references unknown archive collection {stage.archive_collection!r}")
-        for upstream in stage.upstream_collections:
-            if upstream not in config.collections:
-                raise ValueError(f"Stage {stage.name} references unknown upstream collection {upstream!r}")
+            if output.projection == "jsonl_day" and output.projection_target is None:
+                raise ValueError(f"Stage {stage.name} output {output.name} requires projection_target for jsonl_day")
+            if output.projection != "jsonl_day" and output.projection_target is not None:
+                raise ValueError(f"Stage {stage.name} output {output.name} projection_target is only valid for jsonl_day")
 
 
 def run_once(
@@ -52,14 +56,13 @@ def run_once(
     app_config: AppConfig | None = None,
 ) -> int:
     config.out_dir.mkdir(parents=True, exist_ok=True)
-    assert config.state_dir is not None
     config.state_dir.mkdir(parents=True, exist_ok=True)
     validate_pipeline(config)
 
     effective_client = client
     if effective_client is None:
         effective_app_config = app_config or load_app_config()
-        effective_client = ProcessorLLMClient(effective_app_config.llm, effective_app_config.prompts)
+        effective_client = ProcessorLLMClient(effective_app_config.llm)
 
     processed = 0
     for stage in config.stages:
@@ -67,12 +70,12 @@ def run_once(
     return processed
 
 
-def _collection_paths(config: ProcessorConfig, name: str) -> list[Path]:
-    return list_collection_paths(config, name)
+def _collection_paths(config: ProcessorConfig, collection: CollectionDefinition) -> list[Path]:
+    return list_collection_paths(config, collection)
 
 
 def _upstream_pending(config: ProcessorConfig, stage: StageDefinition) -> bool:
-    return any(bool(_collection_paths(config, name)) for name in stage.upstream_collections)
+    return any(bool(_collection_paths(config, collection)) for collection in stage.upstream)
 
 
 def _should_flush(pending_count: int, stage: StageDefinition, upstream_pending: bool) -> bool:
@@ -86,14 +89,13 @@ def _should_flush(pending_count: int, stage: StageDefinition, upstream_pending: 
 def _load_input_item(config: ProcessorConfig, stage: StageDefinition, path: Path) -> InputItem:
     raw = load_json(path)
     envelope = None
-    collection = config.collections[stage.input_collection]
-    if collection.base_dir != "vault":
+    if stage.input.base_dir != "vault":
         envelope = load_artifact(path)
     return InputItem(path=path, raw=raw if isinstance(raw, dict) else {}, envelope=envelope)
 
 
 def _artifact_json_path(config: ProcessorConfig, output: OutputDefinition, envelope: ArtifactEnvelope) -> Path:
-    root = collection_dir(config, output.collection)
+    root = resolve_collection_dir(config, output.collection)
     return root / envelope.date / f"{envelope.item_id}.json"
 
 
@@ -106,9 +108,10 @@ def _write_output_projection(
     touched_dates: set[str] = set()
     if output.projection == "markdown_note":
         for envelope in envelopes:
-            path = note_path(config.out_dir, envelope)
+            date, filename = markdown_filename(envelope)
+            path = resolve_collection_dir(config, output.collection) / date / filename
             if not config.dry_run:
-                atomic_write_text(path, render_note(envelope))
+                atomic_write_text(path, render_markdown(envelope))
             written_paths.append(path)
             touched_dates.add(envelope.date)
         return written_paths, touched_dates
@@ -121,15 +124,16 @@ def _write_output_projection(
         touched_dates.add(envelope.date)
 
     if output.projection == "jsonl_day" and not config.dry_run:
+        assert output.projection_target is not None
         for date in touched_dates:
-            rewrite_timeline_day(config.out_dir, date)
+            rewrite_jsonl_day(config, output.collection, output.projection_target, date)
     return written_paths, touched_dates
 
 
 def _archive_inputs(config: ProcessorConfig, stage: StageDefinition, batch_paths: list[Path]) -> None:
-    if not stage.archive_collection or config.dry_run:
+    if not stage.archive or config.dry_run:
         return
-    archive_root = collection_dir(config, stage.archive_collection)
+    archive_root = resolve_collection_dir(config, stage.archive)
     for path in batch_paths:
         date = path.parent.name
         archive_path = archive_root / date / path.name
@@ -139,7 +143,7 @@ def _archive_inputs(config: ProcessorConfig, stage: StageDefinition, batch_paths
 
 def run_stage_once(config: ProcessorConfig, stage: StageDefinition, client: SupportsLLMClient) -> int:
     state = load_state(config, stage.state_key or stage.name)
-    all_input_paths = _collection_paths(config, stage.input_collection)
+    all_input_paths = _collection_paths(config, stage.input)
     batch_candidates = pending_paths(all_input_paths, state.cursor_path)
     upstream_pending = _upstream_pending(config, stage)
     if not _should_flush(len(batch_candidates), stage, upstream_pending):
@@ -169,8 +173,6 @@ def run_stage_once(config: ProcessorConfig, stage: StageDefinition, client: Supp
         state.last_output_path = last_output_path
     if last_output_id:
         state.last_output_id = last_output_id
-    if stage.name == "l3" and state.cursor_id:
-        state.metadata["last_l2_event_id"] = state.cursor_id
     save_state(config, stage.state_key or stage.name, state)
     return len(processed_items)
 
@@ -185,11 +187,11 @@ def _worker_loop(name: str, config: ProcessorConfig, stage: StageDefinition, cli
                 logging.info("%s worker idle", name)
         except Exception:
             logging.exception("%s worker failed", name)
-        time.sleep(config.poll_interval_s or 10.0)
+        time.sleep(config.poll_interval_s)
 
 
 def _build_worker_client(app_config: AppConfig, semaphore: multiprocessing.Semaphore) -> SupportsLLMClient:
-    return SemaphoreLLMClient(ProcessorLLMClient(app_config.llm, app_config.prompts), semaphore)
+    return SemaphoreLLMClient(ProcessorLLMClient(app_config.llm), semaphore)
 
 
 def _stage_worker(config: ProcessorConfig, app_config: AppConfig, semaphore: multiprocessing.Semaphore, stage_name: str) -> None:
@@ -211,7 +213,7 @@ def _single_loop_worker(config: ProcessorConfig, app_config: AppConfig, semaphor
                 logging.info("processor single loop idle")
         except Exception:
             logging.exception("processor single loop failed")
-        time.sleep(config.poll_interval_s or 10.0)
+        time.sleep(config.poll_interval_s)
 
 
 def build_worker_specs(config: ProcessorConfig) -> list[dict[str, str]]:

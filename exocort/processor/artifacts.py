@@ -1,56 +1,43 @@
-"""Artifact rendering and path helpers."""
+"""Artifact rendering helpers."""
 
 from __future__ import annotations
 
-from pathlib import Path
+import json
 from typing import Any
 
 from .models import ArtifactEnvelope
-from .utils import normalize_list, safe_id, slugify, utc_date, utc_iso
+from .utils import utc_iso
 
 
-def note_path(out_dir: Path, envelope: ArtifactEnvelope | dict[str, Any]) -> Path:
-    payload = envelope.payload if isinstance(envelope, ArtifactEnvelope) else envelope
-    date = str(payload.get("date") or utc_date())
-    note_id = str(payload.get("note_id") or slugify(str(payload.get("title") or "note")))
-    return out_dir / "notes" / "inbox" / date / f"{note_id}.md"
+def markdown_filename(envelope: ArtifactEnvelope) -> tuple[str, str]:
+    return envelope.date, f"{envelope.item_id}.md"
 
 
-def render_note(envelope: ArtifactEnvelope | dict[str, Any]) -> str:
-    payload = envelope.payload if isinstance(envelope, ArtifactEnvelope) else envelope
-    source_event_ids = [str(item).strip() for item in normalize_list(payload.get("source_event_ids")) if str(item).strip()]
-    lines = [
-        "---",
-        "kind: inbox_note",
-        f"note_id: {safe_id(str(payload.get('note_id') or 'note'))}",
-        f"timestamp: {payload.get('timestamp') or ''}",
-        f"date: {payload.get('date') or ''}",
-        f"title: {payload.get('title') or ''}",
-        f"description: {payload.get('description') or ''}",
-        f"category: {payload.get('category') or ''}",
-        f"subject: {payload.get('subject') or ''}",
-        f"super_event_id: {payload.get('super_event_id') or ''}",
-        "source_event_ids:",
-    ]
-    if source_event_ids:
-        lines.extend([f"  - {item}" for item in source_event_ids])
-    else:
-        lines.append("  -")
+def render_markdown(envelope: ArtifactEnvelope | dict[str, Any]) -> str:
+    value = envelope if isinstance(envelope, ArtifactEnvelope) else ArtifactEnvelope.from_dict(envelope)
+    frontmatter = {
+        "kind": value.kind,
+        "stage": value.stage,
+        "item_id": value.item_id,
+        "timestamp": value.timestamp,
+        "date": value.date,
+        "source_ids": value.source_ids,
+        "source_paths": value.source_paths,
+        "trace": value.trace,
+        "updated_at": utc_iso(),
+    }
+    lines = ["---"]
+    for key, item in frontmatter.items():
+        lines.append(f"{key}: {json.dumps(item, ensure_ascii=False)}")
     lines.extend(
         [
-            f"updated_at: {utc_iso()}",
             "---",
             "",
-            f"# {payload.get('title') or 'Untitled note'}",
+            f"# {value.item_id}",
             "",
-            payload.get("description") or "",
-            "",
-            "## Content",
-            payload.get("content") or "",
-            "",
-            "## Traceability",
-            f"- Super event: `{payload.get('super_event_id') or ''}`",
-            *([f"- Source event: `{item}`" for item in source_event_ids] or ["- Source event: `(none)`"]),
+            "```json",
+            json.dumps(value.payload, ensure_ascii=False, indent=2, sort_keys=True),
+            "```",
             "",
         ]
     )

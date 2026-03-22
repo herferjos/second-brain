@@ -2,7 +2,7 @@ Faster Whisper service
 ======================
 
 This is a standalone HTTP service that wraps the `faster-whisper` runtime and exposes
-an OpenAI-compatible transcription endpoint for the main `exocort` processor.
+an OpenAI-compatible transcription endpoint for Exocort.
 
 Endpoint
 --------
@@ -24,7 +24,7 @@ Response JSON:
 { "text": "transcribed text here" }
 ```
 
-This matches what the main app expects when the engine config `stt` block uses:
+This matches what the main app expects when the audio service is configured to use:
 
 - `"format": "openai"`
 - `"endpoint_url": "http://127.0.0.1:9000/v1/audio/transcriptions"`

@@ -19,11 +19,10 @@ def main() -> None:
     collector_enabled = settings.collector_enabled()
     audio_enabled = settings.audio_capturer_enabled()
     screen_enabled = settings.screen_capturer_enabled()
-    processor_enabled = settings.processor_enabled()
 
-    if not any((collector_enabled, audio_enabled, screen_enabled, processor_enabled)):
+    if not any((collector_enabled, audio_enabled, screen_enabled)):
         print(
-            "Nothing to run. Enable at least one component in config/exocort.toml under [runtime].",
+            "Nothing to run. Enable at least one component in config.toml under [runtime].",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -60,17 +59,6 @@ def main() -> None:
             )
         )
         time.sleep(1.5)
-
-    if processor_enabled:
-        procs.append(
-            subprocess.Popen(
-                [sys.executable, "-m", "exocort.processor"],
-                cwd=str(_project_root),
-                env=env,
-                stdout=None,
-                stderr=None,
-            )
-        )
 
     if audio_enabled:
         procs.append(

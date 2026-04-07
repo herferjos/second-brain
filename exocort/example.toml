@@ -1,11 +1,17 @@
 [capturer]
-path = "captures/example"
+path = "tmp"
 
 [capturer.audio]
 enabled = true
 chunk_seconds = 30
 sample_rate = 16000
 channels = 1
+
+[capturer.audio.vad]
+enabled = false
+energy_threshold = 400.0
+window_seconds = 0.1
+speech_ratio = 0.1
 
 [capturer.screen]
 enabled = true

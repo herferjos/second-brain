@@ -6,6 +6,7 @@ from typing import Any
 import tomllib
 
 from exocort.capturer.audio.config import AudioCaptureConfig
+from exocort.capturer.audio.vad import AudioVADConfig
 from exocort.capturer.screen.config import ScreenCaptureConfig
 
 
@@ -15,6 +16,7 @@ class AudioRunnerConfig:
     chunk_seconds: int = 30
     sample_rate: int = 16_000
     channels: int = 1
+    vad: AudioVADConfig = field(default_factory=AudioVADConfig)
 
 
 @dataclass(slots=True)
@@ -49,6 +51,7 @@ class ExocortConfig:
             sample_rate=self.audio.sample_rate,
             channels=self.audio.channels,
             output_dir=self.capture.audio_dir,
+            vad=self.audio.vad,
         )
 
     @property
@@ -69,6 +72,7 @@ def parse_config(raw: dict[str, Any], base_dir: Path | None = None) -> ExocortCo
     base_dir = base_dir or Path.cwd()
     capturer_raw = _get_table(raw, "capturer")
     audio_raw = _get_table(capturer_raw, "audio")
+    vad_raw = _get_table(audio_raw, "vad")
     screen_raw = _get_table(capturer_raw, "screen")
 
     capture_root = _resolve_path(
@@ -84,6 +88,14 @@ def parse_config(raw: dict[str, Any], base_dir: Path | None = None) -> ExocortCo
             chunk_seconds=int(audio_raw.get("chunk_seconds", AudioCaptureConfig.chunk_seconds)),
             sample_rate=int(audio_raw.get("sample_rate", AudioCaptureConfig.sample_rate)),
             channels=int(audio_raw.get("channels", AudioCaptureConfig.channels)),
+            vad=AudioVADConfig(
+                enabled=bool(vad_raw.get("enabled", AudioVADConfig.enabled)),
+                energy_threshold=float(
+                    vad_raw.get("energy_threshold", AudioVADConfig.energy_threshold)
+                ),
+                window_seconds=float(vad_raw.get("window_seconds", AudioVADConfig.window_seconds)),
+                speech_ratio=float(vad_raw.get("speech_ratio", AudioVADConfig.speech_ratio)),
+            ),
         ),
         screen=ScreenRunnerConfig(
             enabled=bool(screen_raw.get("enabled", False)),

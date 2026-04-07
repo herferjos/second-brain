@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import io
 import time
 import wave
@@ -34,10 +35,16 @@ def audio_loop(
     config: AudioCaptureConfig,
     handler: Callable[[bytes], None] | None = None,
 ) -> None:
+    config.output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = config.output_dir
+
     while True:
         started_at = time.monotonic()
         audio_bytes = capture_audio_chunk(config)
         elapsed = time.monotonic() - started_at
-        print(f"[audio] captured {len(audio_bytes)} bytes ({elapsed:.1f}s)")
+        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S%f")
+        file_path = output_dir / f"{timestamp}.wav"
+        file_path.write_bytes(audio_bytes)
+        print(f"[audio] captured {len(audio_bytes)} bytes ({elapsed:.1f}s) → {file_path}")
         if handler is not None:
             handler(audio_bytes)

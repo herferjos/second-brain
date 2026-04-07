@@ -1,0 +1,12 @@
+[capturer]
+path = "captures/example"
+
+[capturer.audio]
+enabled = true
+chunk_seconds = 30
+sample_rate = 16000
+channels = 1
+
+[capturer.screen]
+enabled = true
+interval_seconds = 5

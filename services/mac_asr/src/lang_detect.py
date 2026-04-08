@@ -7,7 +7,6 @@ from typing import Any
 from .config import (
     DETECT_COMPUTE_TYPE,
     DETECT_DEVICE,
-    DETECT_MIN_PROB,
     DETECT_MODEL,
 )
 
@@ -54,14 +53,6 @@ def detect_language(path: Path) -> tuple[str | None, float | None]:
         probability = float(probability) if probability is not None else None
     except (TypeError, ValueError):
         probability = None
-
-    if probability is not None and probability < DETECT_MIN_PROB:
-        log.info(
-            "Language detection below threshold | language=%s | prob=%.3f",
-            language,
-            probability,
-        )
-        return None, probability
 
     if language:
         log.info(

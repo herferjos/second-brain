@@ -135,6 +135,7 @@ dependencies = [
     { name = "pyobjc-framework-cocoa" },
     { name = "pyobjc-framework-speech" },
     { name = "python-multipart" },
+    { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -152,6 +153,7 @@ requires-dist = [
     { name = "pyobjc-framework-speech" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "python-multipart" },
+    { name = "python-dotenv" },
     { name = "uvicorn", extras = ["standard"] },
 ]
 provides-extras = ["dev"]

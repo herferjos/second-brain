@@ -14,7 +14,16 @@ from .asr import (
     resolve_locale,
     transcribe_audio_file,
 )
-from .config import HOST, LOCALE, PORT, PROMPT_PERMISSION, TRANSCRIPTION_TIMEOUT_S
+from .config import (
+    DEFAULT_LOCALE,
+    DETECT_DEFAULT_MIN_PROB,
+    DETECT_DISCARD_MIN_PROB,
+    HOST,
+    LOCALE,
+    PORT,
+    PROMPT_PERMISSION,
+    TRANSCRIPTION_TIMEOUT_S,
+)
 from .lang_detect import detect_language
 
 log = logging.getLogger("mac_asr")
@@ -40,8 +49,15 @@ def _resolve_request_locale(path: Path, language: str | None) -> str:
     if explicit_language_lower == "auto":
         explicit_language = ""
     detected_code = None
+    detected_probability = None
     if not explicit_language and detect_requested:
-        detected_code, _ = detect_language(path)
+        detected_code, detected_probability = detect_language(path)
+        if detected_probability is None:
+            return resolve_locale(None, DEFAULT_LOCALE)
+        if detected_probability < DETECT_DISCARD_MIN_PROB:
+            return ""
+        if detected_probability < DETECT_DEFAULT_MIN_PROB:
+            return resolve_locale(None, DEFAULT_LOCALE)
     return resolve_locale(detected_code, explicit_language)
 
 
@@ -72,6 +88,8 @@ async def transcribe_audio(
     try:
         path.write_bytes(await file.read())
         locale = _resolve_request_locale(path, language)
+        if not locale:
+            return Response(status_code=204)
         try:
             result = transcribe_audio_file(
                 path,

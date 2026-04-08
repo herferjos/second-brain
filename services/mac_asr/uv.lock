@@ -134,8 +134,8 @@ dependencies = [
     { name = "pyobjc-core" },
     { name = "pyobjc-framework-cocoa" },
     { name = "pyobjc-framework-speech" },
-    { name = "python-multipart" },
     { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -146,15 +146,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi" },
-    { name = "faster-whisper" },
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
-    { name = "pyobjc-framework-speech" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "python-multipart" },
-    { name = "python-dotenv" },
-    { name = "uvicorn", extras = ["standard"] },
+    { name = "fastapi", specifier = "==0.135.1" },
+    { name = "faster-whisper", specifier = "==1.2.1" },
+    { name = "pyobjc-core", specifier = "==12.1" },
+    { name = "pyobjc-framework-cocoa", specifier = "==12.1" },
+    { name = "pyobjc-framework-speech", specifier = "==12.1" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.2" },
+    { name = "python-dotenv", specifier = "==1.2.2" },
+    { name = "python-multipart", specifier = "==0.0.22" },
+    { name = "uvicorn", extras = ["standard"], specifier = "==0.41.0" },
 ]
 provides-extras = ["dev"]
 

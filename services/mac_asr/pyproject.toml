@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools==82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,21 +8,21 @@ version = "0.1.0"
 description = "macOS speech-to-text API: one endpoint that transcribes uploaded audio"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi",
-  "faster-whisper",
-  "python-multipart",
-  "python-dotenv",
-  "uvicorn[standard]",
-  "pyobjc-core",
-  "pyobjc-framework-Cocoa",
-  "pyobjc-framework-Speech",
+  "fastapi==0.135.1",
+  "faster-whisper==1.2.1",
+  "python-multipart==0.0.22",
+  "python-dotenv==1.2.2",
+  "uvicorn[standard]==0.41.0",
+  "pyobjc-core==12.1",
+  "pyobjc-framework-Cocoa==12.1",
+  "pyobjc-framework-Speech==12.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest==9.0.2"]
 
 [project.scripts]
-mac-asr-service = "src.app:main"
+mac-asr-service = "app.main:main"
 
-[tool.setuptools]
-packages = ["src"]
+[tool.setuptools.packages.find]
+include = ["app*", "src*"]

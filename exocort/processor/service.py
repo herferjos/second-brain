@@ -47,7 +47,7 @@ def process_pending_files(config: FileProcessorConfig) -> int:
             print(f"[processor] failed {file_path} -> {error_path}: {exc}")
             continue
         output_path.write_text(
-            json.dumps(_serialize_response(response), ensure_ascii=True, indent=2),
+            json.dumps(_serialize_response(response), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         print(f"[processor] saved {file_path} -> {output_path}")
@@ -77,7 +77,7 @@ def _get_endpoint_config(
 
 def _build_output_path(config: FileProcessorConfig, file_path: Path) -> Path:
     relative_path = file_path.relative_to(config.watch_dir)
-    return config.output.root_path / relative_path.with_suffix(f"{file_path.suffix}.json")
+    return config.output.root_path / relative_path.parent / f"{relative_path.name}.json"
 
 
 def _process_file(file_path: Path, endpoint: EndpointConfig) -> Any:

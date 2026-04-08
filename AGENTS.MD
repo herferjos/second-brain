@@ -55,6 +55,9 @@ Transform tasks into verifiable goals:
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
+> **Important:** When writing or running tests, you must use the `.venv` virtual environment at the root of the repository.
+> Do not run tests unless the user has explicitly requested it, and do not create tests unless there is already a test system in the project.
+
 For multi-step tasks, state a brief plan:
 ```
 1. [Step] → verify: [check]

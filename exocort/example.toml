@@ -9,9 +9,11 @@ channels = 1
 
 [capturer.audio.vad]
 enabled = true
-energy_threshold = 400.0
-window_seconds = 0.1
-speech_ratio = 0.1
+aggressiveness = 3
+frame_ms = 20
+pre_roll_seconds = 0.2
+min_speech_seconds = 0.3
+min_silence_seconds = 0.6
 
 [capturer.screen]
 enabled = true

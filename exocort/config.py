@@ -96,11 +96,17 @@ def parse_config(raw: dict[str, Any], base_dir: Path | None = None) -> ExocortCo
             channels=int(audio_raw.get("channels", AudioCaptureConfig.channels)),
             vad=AudioVADConfig(
                 enabled=bool(vad_raw.get("enabled", AudioVADConfig.enabled)),
-                energy_threshold=float(
-                    vad_raw.get("energy_threshold", AudioVADConfig.energy_threshold)
+                aggressiveness=int(vad_raw.get("aggressiveness", AudioVADConfig.aggressiveness)),
+                frame_ms=int(vad_raw.get("frame_ms", AudioVADConfig.frame_ms)),
+                pre_roll_seconds=float(
+                    vad_raw.get("pre_roll_seconds", AudioVADConfig.pre_roll_seconds)
                 ),
-                window_seconds=float(vad_raw.get("window_seconds", AudioVADConfig.window_seconds)),
-                speech_ratio=float(vad_raw.get("speech_ratio", AudioVADConfig.speech_ratio)),
+                min_speech_seconds=float(
+                    vad_raw.get("min_speech_seconds", AudioVADConfig.min_speech_seconds)
+                ),
+                min_silence_seconds=float(
+                    vad_raw.get("min_silence_seconds", AudioVADConfig.min_silence_seconds)
+                ),
             ),
         ),
         screen=ScreenRunnerConfig(

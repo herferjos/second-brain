@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools==82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,18 +8,18 @@ version = "0.1.0"
 description = "Standalone llama.cpp OpenAI-compatible chat completion API"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi",
-  "uvicorn[standard]",
-  "huggingface_hub",
-  "llama-cpp-python @ git+https://github.com/JamePeng/llama-cpp-python.git@v0.3.33-cu130-Basic-win-20260315",
-  "python-dotenv",
+  "fastapi==0.135.1",
+  "uvicorn[standard]==0.42.0",
+  "huggingface_hub==1.7.1",
+  "llama-cpp-python @ git+https://github.com/JamePeng/llama-cpp-python.git@35957bd7aa7d21f77a07d838f1308bffa33573ff",
+  "python-dotenv==1.2.2",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest==9.0.2"]
 
 [project.scripts]
-llama-cpp-service = "src.app:main"
+llama-cpp-service = "app.main:main"
 
-[tool.setuptools]
-packages = ["src"]
+[tool.setuptools.packages.find]
+include = ["app*", "src*"]

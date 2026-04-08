@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from services.faster_whisper.config import load_settings
+from services.faster_whisper.src.config import load_settings
 
 
 pytestmark = [pytest.mark.service, pytest.mark.unit]

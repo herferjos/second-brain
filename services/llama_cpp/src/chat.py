@@ -7,14 +7,13 @@ import time
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from .config import LlamaCppSettings, load_settings
 
 
 log = logging.getLogger("llama_cpp")
-app = FastAPI(title="Llama.cpp", version="0.1.0")
 
 _settings: LlamaCppSettings | None = None
 _llama = None
@@ -94,8 +93,7 @@ def _normalize_messages(messages: list[ChatMessage]) -> list[dict[str, str]]:
     return out
 
 
-@app.on_event("startup")
-def _startup() -> None:
+def startup() -> None:
     global _settings, _llama
     _settings = load_settings()
     try:
@@ -105,12 +103,10 @@ def _startup() -> None:
         raise
 
 
-@app.get("/health")
 def health() -> dict[str, object]:
     return {"ok": _llama is not None}
 
 
-@app.get("/v1/models")
 def list_models() -> dict[str, Any]:
     settings = _settings or load_settings()
     model_name = _model_name(settings)
@@ -126,7 +122,6 @@ def list_models() -> dict[str, Any]:
     }
 
 
-@app.post("/v1/chat/completions")
 def chat_completions(payload: ChatCompletionRequest) -> dict[str, Any]:
     if payload.stream:
         raise HTTPException(status_code=400, detail="streaming is not supported")
@@ -169,15 +164,17 @@ def chat_completions(payload: ChatCompletionRequest) -> dict[str, Any]:
     response.setdefault("created", int(time.time()))
     response.setdefault("model", payload.model or model_name)
     response.setdefault("choices", [])
-    response.setdefault("usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+    response.setdefault(
+        "usage",
+        {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    )
     return response
 
 
-def main() -> None:
-    import uvicorn
-
-    settings = load_settings()
-    uvicorn.run("src.app:app", host=settings.host, port=settings.port, reload=True)
-
-
-__all__ = ["app", "main"]
+__all__ = [
+    "ChatCompletionRequest",
+    "chat_completions",
+    "health",
+    "list_models",
+    "startup",
+]

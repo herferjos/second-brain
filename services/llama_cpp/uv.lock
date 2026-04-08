@@ -91,12 +91,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi" },
-    { name = "huggingface-hub" },
-    { name = "llama-cpp-python", git = "https://github.com/JamePeng/llama-cpp-python.git?rev=v0.3.33-cu130-Basic-win-20260315" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "python-dotenv" },
-    { name = "uvicorn", extras = ["standard"] },
+    { name = "fastapi", specifier = "==0.135.1" },
+    { name = "huggingface-hub", specifier = "==1.7.1" },
+    { name = "llama-cpp-python", git = "https://github.com/JamePeng/llama-cpp-python.git?rev=35957bd7aa7d21f77a07d838f1308bffa33573ff" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.2" },
+    { name = "python-dotenv", specifier = "==1.2.2" },
+    { name = "uvicorn", extras = ["standard"], specifier = "==0.42.0" },
 ]
 provides-extras = ["dev"]
 
@@ -292,7 +292,7 @@ wheels = [
 [[package]]
 name = "llama-cpp-python"
 version = "0.3.33"
-source = { git = "https://github.com/JamePeng/llama-cpp-python.git?rev=v0.3.33-cu130-Basic-win-20260315#35957bd7aa7d21f77a07d838f1308bffa33573ff" }
+source = { git = "https://github.com/JamePeng/llama-cpp-python.git?rev=35957bd7aa7d21f77a07d838f1308bffa33573ff#35957bd7aa7d21f77a07d838f1308bffa33573ff" }
 dependencies = [
     { name = "diskcache" },
     { name = "jinja2" },

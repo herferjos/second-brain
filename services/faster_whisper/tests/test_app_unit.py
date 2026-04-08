@@ -6,24 +6,22 @@ import io
 import pytest
 from starlette.datastructures import UploadFile
 
-from services.faster_whisper.app import transcribe_audio
+from services.faster_whisper.app.api.v1.endpoints.transcriptions import transcribe_audio
 
 
 pytestmark = [pytest.mark.service, pytest.mark.unit]
 
 
-class FakeSegment:
-    def __init__(self, text: str) -> None:
-        self.text = text
-
-
-class FakeModel:
-    def transcribe(self, path, beam_size, language, initial_prompt):
-        return [FakeSegment("hello"), FakeSegment("world")], None
-
-
 def test_transcribe_audio_returns_joined_text(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("services.faster_whisper.app.get_model", lambda: FakeModel())
+    monkeypatch.setattr(
+        "services.faster_whisper.app.api.v1.endpoints.transcriptions.transcribe_path",
+        lambda path, language, prompt: {
+            "text": "hello world",
+            "task": "transcribe",
+            "language": language,
+            "duration": None,
+        },
+    )
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
 
     payload = asyncio.run(transcribe_audio(file=upload, language="en", prompt="test"))

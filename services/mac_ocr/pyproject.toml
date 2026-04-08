@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools==82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,20 +8,22 @@ version = "0.1.0"
 description = "Standalone macOS Vision OCR API for uploaded image files"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi",
-  "python-multipart",
-  "uvicorn[standard]",
-  "pyobjc-framework-ApplicationServices",
-  "pyobjc-framework-Cocoa",
-  "pyobjc-framework-Quartz",
-  "pyobjc-framework-Vision",
+  "fastapi==0.135.1",
+  "python-multipart==0.0.22",
+  "python-dotenv==1.2.2",
+  "uvicorn[standard]==0.41.0",
+  "pyobjc-core==12.1",
+  "pyobjc-framework-ApplicationServices==12.1",
+  "pyobjc-framework-Cocoa==12.1",
+  "pyobjc-framework-Quartz==12.1",
+  "pyobjc-framework-Vision==12.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest==9.0.2"]
 
 [project.scripts]
-mac-ocr-service = "src.app:main"
+mac-ocr-service = "app.main:main"
 
-[tool.setuptools]
-packages = ["src"]
+[tool.setuptools.packages.find]
+include = ["app*", "src*"]

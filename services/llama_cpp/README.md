@@ -21,14 +21,14 @@ Configuration
 
 Environment variables:
 
-- `LLAMA_CPP_MODEL_ID`: Hugging Face repo id for auto-download (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`)
-- `LLAMA_CPP_QUANTIZATION`: The quantization level of the model to download (e.g. `Q4_K_M`)
+- `LLAMA_CPP_MODEL_ID`: required Hugging Face repo id for auto-download (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`)
+- `LLAMA_CPP_QUANTIZATION`: required quantization level of the model to download (e.g. `Q4_K_M`)
 - `LLAMA_CPP_MODEL_DIR`: download target directory (default `./models`)
 - `LLAMA_CPP_CTX`: context size (default 4096)
 - `LLAMA_CPP_N_GPU_LAYERS`: GPU layers (default 0)
 - `LLAMA_CPP_THREADS`: CPU threads (default 0 = llama.cpp default)
 - `LLAMA_CPP_N_BATCH`: Batch size (default 512)
-- `LLAMA_CPP_SEED`: Seed for reproducibility (default -1 = random)
+- `LLAMA_CPP_SEED`: Seed for reproducibility (default 42)
 - `LLAMA_CPP_TEMPERATURE`: default temperature (default 0.2)
 - `LLAMA_CPP_HOST`: bind host (default 127.0.0.1)
 - `LLAMA_CPP_PORT`: bind port (default 9100)
@@ -41,6 +41,8 @@ From `services/llama_cpp`:
 uv sync
 uv run llama-cpp-service
 ```
+
+Copy `.env.example` to `.env` before running. The example file includes the code defaults for optional runtime knobs and sample values for the required model settings.
 
 If the model file is not present locally, the service will download the specified
 quantization of the model from Hugging Face on startup.

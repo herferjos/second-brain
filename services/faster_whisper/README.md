@@ -40,19 +40,21 @@ Local configuration
 -------------------
 
 Service runtime settings are controlled through environment variables loaded from `.env`.
+Copy `.env.example` to `.env` and adjust if needed.
 Main keys: `FASTER_WHISPER_MODEL_PATH`, `FASTER_WHISPER_DEVICE`,
 `FASTER_WHISPER_COMPUTE_TYPE`, `FASTER_WHISPER_BEAM_SIZE`,
 `FASTER_WHISPER_LANGUAGE`,
 `FASTER_WHISPER_HOST`, `FASTER_WHISPER_PORT`.
+Set `FASTER_WHISPER_LANGUAGE=auto` or leave it unset to let `faster-whisper` auto-detect the language.
 
 Running the service
 -------------------
 
-From the project root, install the service dependencies in a separate environment
-or extras, then run:
+From `services/faster_whisper`:
 
 ```bash
-python -m services.faster_whisper.app
+uv sync
+uv run faster-whisper-service
 ```
 
 Exocort example:

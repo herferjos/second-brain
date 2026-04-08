@@ -38,3 +38,5 @@ models/
 configs/
 
 .python-version
+
+.claude/

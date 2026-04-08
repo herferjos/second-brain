@@ -2,47 +2,48 @@ Faster Whisper service
 ======================
 
 This is a standalone HTTP service that wraps the `faster-whisper` runtime and exposes
-an OpenAI-compatible transcription endpoint for Exocort.
+a LiteLLM/OpenAI-compatible transcription endpoint for Exocort.
 
 Endpoint
 --------
 
 - `POST /v1/audio/transcriptions`
 
-Request:
+Expected request format:
 
 - multipart/form-data
 - fields:
   - `file`: audio file upload (required)
-  - `model`: optional model name (ignored, the service uses its own configured model)
+  - `model`: optional string. Ignored by the service, but accepted because LiteLLM sends it.
   - `language`: optional language code, e.g. `en`, `es`
   - `prompt`: optional initial transcription prompt
+  - `response_format`: optional. If present, must be `json`
+  - `temperature`: optional. Accepted and ignored.
 
-Response JSON:
+Expected response format:
 
 ```json
-{ "text": "transcribed text here" }
+{
+  "text": "transcribed text here",
+  "task": "transcribe",
+  "language": "en",
+  "duration": null
+}
 ```
 
-This matches what the main app expects when the audio service is configured to use:
+If no speech is detected, it returns HTTP `204`.
+If another `response_format` is sent, the service returns HTTP `400`.
 
-- `"format": "openai"`
-- `"endpoint_url": "http://127.0.0.1:9000/v1/audio/transcriptions"`
+This is the format Exocort now expects when calling ASR through LiteLLM-compatible endpoints.
 
 Local configuration
 -------------------
 
-Service runtime settings live in `config.py` / `config.toml` in this folder and are
-NOT part of the main app config. Example `config.toml`:
-
-```toml
-model_path = "medium"
-device = "cpu"
-compute_type = "int8"
-vad_filter = true
-beam_size = 5
-language = "en"
-```
+Service runtime settings are controlled through environment variables loaded from `.env`.
+Main keys: `FASTER_WHISPER_MODEL_PATH`, `FASTER_WHISPER_DEVICE`,
+`FASTER_WHISPER_COMPUTE_TYPE`, `FASTER_WHISPER_BEAM_SIZE`,
+`FASTER_WHISPER_LANGUAGE`,
+`FASTER_WHISPER_HOST`, `FASTER_WHISPER_PORT`.
 
 Running the service
 -------------------
@@ -54,15 +55,11 @@ or extras, then run:
 python -m services.faster_whisper.app
 ```
 
-Once running, point your STT config to it, for example:
+Exocort example:
 
-```json
-{
-  "format": "openai",
-  "endpoint_url": "http://127.0.0.1:9000/v1/audio/transcriptions",
-  "model": "faster-whisper-local",
-  "api_key": "",
-  "steps": [],
-  "output": "text"
-}
+```toml
+[processor.asr]
+model = "faster-whisper-local"
+api_base = "http://127.0.0.1:9000/v1"
+api_key_env = ""
 ```

@@ -58,8 +58,10 @@ async def transcribe_audio(
     model: str | None = Form(None),
     language: str | None = Form(None),
     prompt: str | None = Form(None),
+    response_format: str | None = Form(None),
+    temperature: float | None = Form(None),
 ) -> object:
-    del model, prompt
+
     if not ensure_speech_permission(prompt=PROMPT_PERMISSION):
         raise HTTPException(
             status_code=409,

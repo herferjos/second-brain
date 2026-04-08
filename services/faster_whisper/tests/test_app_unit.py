@@ -18,7 +18,7 @@ class FakeSegment:
 
 
 class FakeModel:
-    def transcribe(self, path, beam_size, language, vad_filter, initial_prompt):
+    def transcribe(self, path, beam_size, language, initial_prompt):
         return [FakeSegment("hello"), FakeSegment("world")], None
 
 
@@ -28,4 +28,9 @@ def test_transcribe_audio_returns_joined_text(monkeypatch: pytest.MonkeyPatch) -
 
     payload = asyncio.run(transcribe_audio(file=upload, language="en", prompt="test"))
 
-    assert payload == {"text": "hello world"}
+    assert payload == {
+        "text": "hello world",
+        "task": "transcribe",
+        "language": "en",
+        "duration": None,
+    }

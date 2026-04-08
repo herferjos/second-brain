@@ -8,6 +8,7 @@ import tomllib
 from exocort.capturer.audio.config import AudioCaptureConfig
 from exocort.capturer.audio.vad import AudioVADConfig
 from exocort.capturer.screen.config import ScreenCaptureConfig
+from exocort.processor import EndpointConfig, FileProcessorConfig, ProcessingOutputConfig
 
 
 @dataclass(slots=True)
@@ -43,6 +44,7 @@ class ExocortConfig:
     capture: CaptureOutputConfig = field(default_factory=CaptureOutputConfig)
     audio: AudioRunnerConfig = field(default_factory=AudioRunnerConfig)
     screen: ScreenRunnerConfig = field(default_factory=ScreenRunnerConfig)
+    processor: FileProcessorConfig = field(default_factory=FileProcessorConfig)
 
     @property
     def audio_capture(self) -> AudioCaptureConfig:
@@ -74,6 +76,10 @@ def parse_config(raw: dict[str, Any], base_dir: Path | None = None) -> ExocortCo
     audio_raw = _get_table(capturer_raw, "audio")
     vad_raw = _get_table(audio_raw, "vad")
     screen_raw = _get_table(capturer_raw, "screen")
+    processor_raw = _get_table(raw, "processor")
+    processor_output_raw = _get_table(processor_raw, "output")
+    processor_ocr_raw = _get_table(processor_raw, "ocr")
+    processor_asr_raw = _get_table(processor_raw, "asr")
 
     capture_root = _resolve_path(
         capturer_raw.get("path"),
@@ -102,6 +108,34 @@ def parse_config(raw: dict[str, Any], base_dir: Path | None = None) -> ExocortCo
             interval_seconds=int(
                 screen_raw.get("interval_seconds", ScreenCaptureConfig.interval_seconds)
             )
+        ),
+        processor=FileProcessorConfig(
+            enabled=bool(processor_raw.get("enabled", False)),
+            watch_dir=_resolve_path(
+                processor_raw.get("watch_dir"),
+                base_dir,
+                capture_root,
+            ),
+            poll_interval_seconds=int(
+                processor_raw.get("poll_interval_seconds", FileProcessorConfig.poll_interval_seconds)
+            ),
+            output=ProcessingOutputConfig(
+                root_path=_resolve_path(
+                    processor_output_raw.get("path"),
+                    base_dir,
+                    capture_root / "processed",
+                )
+            ),
+            ocr=EndpointConfig(
+                model=str(processor_ocr_raw.get("model", "")),
+                api_base=str(processor_ocr_raw.get("api_base", "")),
+                api_key_env=str(processor_ocr_raw.get("api_key_env", "")),
+            ),
+            asr=EndpointConfig(
+                model=str(processor_asr_raw.get("model", "")),
+                api_base=str(processor_asr_raw.get("api_base", "")),
+                api_key_env=str(processor_asr_raw.get("api_key_env", "")),
+            ),
         ),
     )
 

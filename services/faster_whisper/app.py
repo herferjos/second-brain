@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tempfile import gettempdir
 from typing import Annotated
+from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from starlette.responses import Response
 
 from config import FasterWhisperSettings, load_settings
 
@@ -34,11 +37,16 @@ def get_model():
 @app.post("/v1/audio/transcriptions")
 async def transcribe_audio(
     file: UploadFile = File(...),
-    model_name: Annotated[str | None, Form()] = None,
+    model: Annotated[str | None, Form()] = None,
     language: Annotated[str | None, Form()] = None,
     prompt: Annotated[str | None, Form()] = None,
-) -> dict[str, str]:
-    tmp_path = Path(f"/tmp/{file.filename}")
+    response_format: Annotated[str | None, Form()] = None,
+    temperature: Annotated[float | None, Form()] = None,
+) -> Response | dict[str, object]:
+    del model, temperature
+    if response_format not in (None, "", "json"):
+        raise HTTPException(status_code=400, detail="Only response_format=json is supported.")
+    tmp_path = Path(gettempdir()) / f"{uuid4().hex}-{file.filename or 'audio'}"
     try:
         content = await file.read()
         tmp_path.write_bytes(content)
@@ -47,13 +55,19 @@ async def transcribe_audio(
             str(tmp_path),
             beam_size=settings.beam_size,
             language=language or settings.language,
-            vad_filter=settings.vad_filter,
             initial_prompt=prompt or None,
         )
 
         text_parts: list[str] = [segment.text.strip() for segment in segments if segment.text]
         text = " ".join(text_parts).strip()
-        return {"text": text}
+        if not text:
+            return Response(status_code=204)
+        return {
+            "text": text,
+            "task": "transcribe",
+            "language": language or settings.language,
+            "duration": None,
+        }
     finally:
         try:
             if tmp_path.exists():

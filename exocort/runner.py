@@ -35,6 +35,17 @@ def build_services(config: ExocortConfig) -> list[threading.Thread]:
             )
         )
 
+    if config.processor.enabled:
+        from exocort.processor import processing_loop
+
+        services.append(
+            _build_thread(
+                "file-processor",
+                processing_loop,
+                config.processor,
+            )
+        )
+
     return services
 
 
@@ -42,13 +53,13 @@ def run(config: ExocortConfig) -> None:
     services = build_services(config)
 
     if not services:
-        print("[exocort] no capturers enabled, nothing to run.")
+        print("[exocort] no services enabled, nothing to run.")
         return
 
     for service in services:
         service.start()
 
-    print(f"[exocort] running {len(services)} capturer(s)")
+    print(f"[exocort] running {len(services)} service(s)")
 
     for service in services:
         service.join()

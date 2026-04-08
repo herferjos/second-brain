@@ -1,13 +1,55 @@
-# Exocort capturers
+# Exocort capturers and processors
 
-Minimal runner that boots the audio and screen capturers defined in `exocort/configs/config.toml`.
+Minimal runner that boots the enabled capture and processing services defined in the TOML config.
 
 1. Install dependencies (e.g., `pip install .`).
-2. Adjust `exocort/configs/config.toml` to set `capturer.path` (relative to the directory where you run the runner) and configure the `[capturer.audio]` / `[capturer.screen]` sections for the destinations and capture settings you want.
+2. Adjust the TOML file to set `capturer.path` and configure the `[capturer.audio]`, `[capturer.screen]`, and optional `[processor]` sections.
 3. Run:
    ```bash
    python -m exocort.runner --config exocort/config.toml
    ```
    or use the entry point `exocort` once the package is installed.
 
-The runner starts only the enabled services, keeps their loops modular, and relies on the TOML file for configuration.
+The processor watches a folder recursively, sends supported image files to OCR and audio files to ASR using LiteLLM-compatible endpoints, and stores each response as JSON in the configured output folder while preserving the relative directory structure.
+
+Expected endpoint contracts
+---------------------------
+
+ASR endpoints must expose `POST /v1/audio/transcriptions` and accept `multipart/form-data`
+with at least `file`, `model`, and optionally `language`, `prompt`, `response_format`,
+`temperature`. The expected JSON response is:
+
+```json
+{
+  "text": "transcribed text",
+  "task": "transcribe",
+  "language": "en",
+  "duration": null
+}
+```
+
+OCR endpoints must expose `POST /v1/ocr` and accept `multipart/form-data` with at least
+`file` and `model`. The expected JSON response follows the Mistral-style OCR schema used
+by LiteLLM:
+
+```json
+{
+  "pages": [
+    {
+      "index": 0,
+      "markdown": "recognized text",
+      "images": []
+    }
+  ],
+  "model": "service-name",
+  "usage_info": {
+    "pages_processed": 1,
+    "doc_size_bytes": 12345
+  },
+  "document_annotation": null,
+  "object": "ocr"
+}
+```
+
+LiteLLM still requires the `model` value to include a real provider prefix (e.g., `openai/…`, `mistral/…`)
+even when pointing at an adhoc API base; otherwise the SDK raises `LLM Provider NOT provided`.

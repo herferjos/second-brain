@@ -10,7 +10,7 @@ from src.ocr import OcrLine, ocr_image_path
 pytestmark = [pytest.mark.service, pytest.mark.unit, pytest.mark.ocr]
 
 
-def test_ocr_image_path_returns_text_only(
+def test_ocr_image_path_returns_mistral_style_payload(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -33,8 +33,9 @@ def test_ocr_image_path_returns_text_only(
 
     payload = ocr_image_path(image_path)
 
-    assert payload["text"] == "hello world"
-    assert list(payload.keys()) == ["text"]
+    assert payload["pages"][0]["markdown"] == "hello world"
+    assert payload["usage_info"]["pages_processed"] == 1
+    assert payload["object"] == "ocr"
 
 
 def test_ocr_image_path_missing_file_raises(tmp_path: Path) -> None:

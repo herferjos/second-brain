@@ -16,7 +16,6 @@ def test_load_settings_reads_toml(tmp_path: Path) -> None:
         'model_path = "small"\n'
         'device = "cpu"\n'
         'compute_type = "int8"\n'
-        'vad_filter = true\n'
         'beam_size = 7\n'
         'language = "en"\n',
         encoding="utf-8",

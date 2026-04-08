@@ -29,8 +29,22 @@ def ocr_image_path(path: Path) -> dict[str, object]:
 
     lines = _recognize_lines_from_path(image_path)
     ordered_lines = sorted(lines, key=lambda item: (-item.y, item.x, -item.confidence))
+    text = "\n".join(item.text for item in ordered_lines)
     return {
-        "text": "\n".join(item.text for item in ordered_lines),
+        "pages": [
+            {
+                "index": 0,
+                "markdown": text,
+                "images": [],
+            }
+        ],
+        "model": "mac-ocr",
+        "usage_info": {
+            "pages_processed": 1,
+            "doc_size_bytes": image_path.stat().st_size,
+        },
+        "document_annotation": None,
+        "object": "ocr",
     }
 
 

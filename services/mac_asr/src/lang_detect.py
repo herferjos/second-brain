@@ -39,7 +39,6 @@ def detect_language(path: Path) -> tuple[str | None, float | None]:
             str(path),
             beam_size=1,
             language=None,
-            vad_filter=True,
         )
     except Exception as exc:
         log.warning("Language detection failed: %s", exc)

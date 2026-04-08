@@ -1,14 +1,29 @@
 # Mac ASR Service
 
-One job: **transcribe audio**. HTTP API that accepts an audio file and returns the transcription using macOS Speech framework.
+One job: **transcribe audio**. HTTP API that accepts an audio file and returns a LiteLLM/OpenAI-compatible transcription payload using macOS Speech framework.
 
 ## Endpoint
 
-- **POST /v1/audio/transcriptions** — `file` (required), optional `language` (e.g. `es-ES`).  
-  If `language` is omitted, the system uses the default macOS locale.  
-  Accepts the minimal OpenAI-style multipart fields this project sends: `model`, `file`, optional `language`, and optional `prompt`.
-  Returns an OpenAI-style transcription payload with at least `text`, `task`, `language` and `duration`.
+- **POST /v1/audio/transcriptions**
+  Expected request format: `multipart/form-data`
+  Accepted fields: `file` (required), `model`, `language`, `prompt`, `response_format`, `temperature`
+  If `language` is omitted, the service resolves it from `MAC_ASR_LOCALE` and can auto-detect when configured.
+  Expected JSON response format:
+
+```json
+{
+  "text": "hola mundo",
+  "task": "transcribe",
+  "language": "es-ES",
+  "duration": null
+}
+```
+
+  If no speech is detected, it returns HTTP `204`.
+  If another `response_format` is sent, the service returns HTTP `400`.
 - **GET /health** — readiness and locale.
+
+This is the ASR format Exocort expects when it sends audio through LiteLLM-compatible endpoints.
 
 ## Run
 

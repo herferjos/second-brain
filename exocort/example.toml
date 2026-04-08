@@ -8,7 +8,7 @@ sample_rate = 16000
 channels = 1
 
 [capturer.audio.vad]
-enabled = false
+enabled = true
 energy_threshold = 400.0
 window_seconds = 0.1
 speech_ratio = 0.1
@@ -16,3 +16,21 @@ speech_ratio = 0.1
 [capturer.screen]
 enabled = true
 interval_seconds = 5
+
+[processor]
+enabled = true
+watch_dir = "tmp"
+poll_interval_seconds = 5
+
+[processor.output]
+path = "tmp/processed"
+
+[processor.ocr]
+model = "mistral/mistral-ocr-latest" # This model string must match a real LiteLLM provider (mistral/…, openai/…, etc.).
+api_base = "http://127.0.0.1:9093/v1"
+api_key_env = "LITELLM_API_KEY"
+
+[processor.asr]
+model = "openai/whisper" # LiteLLM still requires a registered provider prefix even when targeting an adhoc endpoint.
+api_base = "http://127.0.0.1:9092/v1"
+api_key_env = "LITELLM_API_KEY"

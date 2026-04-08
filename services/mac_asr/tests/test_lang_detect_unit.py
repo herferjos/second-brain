@@ -14,7 +14,7 @@ def test_detect_language_accepts_confident_result(monkeypatch: pytest.MonkeyPatc
     info = types.SimpleNamespace(language="es", language_probability=0.9)
 
     class FakeModel:
-        def transcribe(self, path, beam_size, language, vad_filter):
+        def transcribe(self, path, beam_size, language):
             return [], info
 
     monkeypatch.setattr(lang_detect, "get_detector_model", lambda: FakeModel())
@@ -29,7 +29,7 @@ def test_detect_language_rejects_low_probability(monkeypatch: pytest.MonkeyPatch
     info = types.SimpleNamespace(language="en", language_probability=0.2)
 
     class FakeModel:
-        def transcribe(self, path, beam_size, language, vad_filter):
+        def transcribe(self, path, beam_size, language):
             return [], info
 
     monkeypatch.setattr(lang_detect, "get_detector_model", lambda: FakeModel())

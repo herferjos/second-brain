@@ -35,8 +35,10 @@ todo
 
 models/
 
-configs/
-
 .python-version
 
 .claude/
+
+exocort/*.toml
+!**/*example*.toml*
+!**/*.toml.example

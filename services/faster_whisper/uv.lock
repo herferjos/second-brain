@@ -157,6 +157,7 @@ name = "exocort-faster-whisper-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "exocort-services-common" },
     { name = "fastapi" },
     { name = "faster-whisper" },
     { name = "python-dotenv" },
@@ -173,6 +174,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "exocort-services-common", editable = "../common" },
     { name = "fastapi", specifier = "==0.135.1" },
     { name = "faster-whisper", specifier = "==1.2.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.2" },
@@ -183,6 +185,11 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = "==0.42.0" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "exocort-services-common"
+version = "0.1.0"
+source = { editable = "../common" }
 
 [[package]]
 name = "fastapi"

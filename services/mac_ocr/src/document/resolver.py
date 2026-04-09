@@ -7,11 +7,20 @@ from tempfile import NamedTemporaryFile
 
 from fastapi import HTTPException
 
+from common.logs import get_logger
+
 from .models import OcrDocumentPayload
+
+log = get_logger("mac_ocr", "document")
 
 
 def resolve_document_path(document: OcrDocumentPayload) -> Path:
     image_url = document.image_url
+    log.debug(
+        "Resolving OCR document | type=%s | image_url_prefix=%s",
+        document.type,
+        image_url[:64],
+    )
     if not image_url.startswith("data:"):
         raise HTTPException(status_code=400, detail="document.image_url must be a data URI.")
 
@@ -27,6 +36,7 @@ def resolve_document_path(document: OcrDocumentPayload) -> Path:
         )
 
     mime_type = header[5:].split(";", 1)[0]
+    log.debug("Parsed OCR data URI | mime_type=%s", mime_type)
     suffix = {
         "image/png": ".png",
         "image/jpeg": ".jpg",
@@ -41,11 +51,14 @@ def resolve_document_path(document: OcrDocumentPayload) -> Path:
         image_bytes = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise HTTPException(status_code=400, detail="Invalid base64 image data.") from exc
+    log.debug("Decoded OCR image bytes | byte_count=%s", len(image_bytes))
 
     temp_file = NamedTemporaryFile(delete=False, suffix=suffix)
     try:
         temp_file.write(image_bytes)
     finally:
         temp_file.close()
+
+    log.debug("Stored OCR temp image | path=%s | suffix=%s", temp_file.name, suffix)
 
     return Path(temp_file.name)

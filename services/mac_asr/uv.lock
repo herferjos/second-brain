@@ -129,6 +129,7 @@ name = "exocort-mac-asr-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "exocort-services-common" },
     { name = "fastapi" },
     { name = "faster-whisper" },
     { name = "pyobjc-core" },
@@ -146,6 +147,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "exocort-services-common", editable = "../common" },
     { name = "fastapi", specifier = "==0.135.1" },
     { name = "faster-whisper", specifier = "==1.2.1" },
     { name = "pyobjc-core", specifier = "==12.1" },
@@ -157,6 +159,11 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = "==0.41.0" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "exocort-services-common"
+version = "0.1.0"
+source = { editable = "../common" }
 
 [[package]]
 name = "fastapi"

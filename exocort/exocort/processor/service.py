@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
 import json
 import os
 from pathlib import Path
@@ -47,7 +46,7 @@ def process_pending_files(config: FileProcessorSettings) -> int:
             print(f"[processor] failed {file_path} -> {error_path}: {exc}")
             continue
         output_path.write_text(
-            json.dumps(_serialize_response(response), ensure_ascii=False, indent=2),
+            json.dumps({"text": _extract_text(response)}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         print(f"[processor] saved {file_path} -> {output_path}")
@@ -104,15 +103,32 @@ def _process_file(file_path: Path, endpoint: EndpointSettings) -> Any:
         )
 
 
-def _serialize_response(value: Any) -> Any:
-    if hasattr(value, "model_dump"):
-        return value.model_dump()
-    if is_dataclass(value):
-        return asdict(value)
-    if isinstance(value, Path):
-        return str(value)
+def _extract_text(value: Any) -> str:
+    text = _text_from_value(value, "text")
+    if text:
+        return text
+
+    pages = _value_from_source(value, "pages")
+    if isinstance(pages, (list, tuple)):
+        page_texts: list[str] = []
+        for page in pages:
+            page_text = _text_from_value(page, "text") or _text_from_value(page, "markdown")
+            if page_text:
+                page_texts.append(page_text)
+        if page_texts:
+            return "\n".join(page_texts).strip()
+
+    return ""
+
+
+def _text_from_value(value: Any, key: str) -> str:
+    raw_value = _value_from_source(value, key)
+    if raw_value is None:
+        return ""
+    return str(raw_value).strip()
+
+
+def _value_from_source(value: Any, key: str) -> Any:
     if isinstance(value, dict):
-        return {key: _serialize_response(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_serialize_response(item) for item in value]
-    return value
+        return value.get(key)
+    return getattr(value, key, None)

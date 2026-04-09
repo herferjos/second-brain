@@ -7,4 +7,4 @@ from dataclasses import dataclass
 class MacOcrSettings:
     host: str
     port: int
-    log_level: int
+    log_level: str

@@ -94,6 +94,34 @@ def test_transcribe_audio_no_speech_returns_204(
     assert resp.status_code == 204
 
 
+def test_transcribe_audio_retry_error_returns_204(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.transcriptions.ensure_speech_permission",
+        lambda prompt=False: True,
+    )
+    monkeypatch.setattr(
+        "src.transcription.resolve_locale",
+        lambda code, explicit: explicit or "es-ES",
+    )
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.transcriptions.transcribe_audio_file",
+        lambda path, locale, timeout_s: (_ for _ in ()).throw(
+            RuntimeError(
+                'Error Domain=kAFAssistantErrorDomain Code=203 "Retry" '
+                "UserInfo={NSLocalizedDescription=Retry, "
+                "NSUnderlyingError=0x0 {Error Domain=SiriSpeechErrorDomain Code=1 \"(null)\"}}"
+            )
+        ),
+    )
+
+    upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
+    resp = asyncio.run(transcribe_audio(file=upload, language="es-ES"))
+    assert isinstance(resp, Response)
+    assert resp.status_code == 204
+
+
 def test_transcribe_audio_empty_text_returns_204(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

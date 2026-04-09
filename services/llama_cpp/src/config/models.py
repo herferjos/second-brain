@@ -8,6 +8,7 @@ from pathlib import Path
 class LlamaCppSettings:
     host: str
     port: int
+    log_level: str
     model_id: str
     quantization: str
     model_dir: Path

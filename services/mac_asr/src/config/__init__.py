@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 
 from dotenv import load_dotenv
@@ -37,10 +36,6 @@ def _probability(key: str, default: float) -> float:
     return max(0.0, min(1.0, _float(key, default)))
 
 
-def _log_level(key: str, default: str) -> int:
-    return getattr(logging, _str(key, default).upper(), logging.INFO)
-
-
 def load_settings() -> MacAsrSettings:
     load_dotenv()
     return MacAsrSettings(
@@ -50,7 +45,7 @@ def load_settings() -> MacAsrSettings:
         default_locale=_str("MAC_ASR_DEFAULT_LOCALE", "es"),
         transcription_timeout_s=max(3.0, _float("MAC_ASR_TRANSCRIPTION_TIMEOUT_S", 30.0)),
         prompt_permission=_bool("MAC_ASR_PROMPT_PERMISSION", True),
-        log_level=_log_level("MAC_ASR_LOG_LEVEL", "INFO"),
+        log_level=_str("MAC_ASR_LOG_LEVEL", "info").lower(),
         detect_model=_str("MAC_ASR_DETECT_MODEL", "tiny"),
         detect_device=_str("MAC_ASR_DETECT_DEVICE", "cpu"),
         detect_compute_type=_str("MAC_ASR_DETECT_COMPUTE_TYPE", "int8"),

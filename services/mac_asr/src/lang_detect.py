@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 from faster_whisper import WhisperModel
 
+from common.logs import get_logger
+
 from .config import load_settings
 
-log = logging.getLogger("mac_asr.lang_detect")
+log = get_logger("mac_asr", "lang_detect")
 _detector_model: WhisperModel | None = None
 
 
@@ -26,6 +27,7 @@ def get_detector_model() -> WhisperModel:
 
 
 def detect_language(path: Path) -> tuple[str | None, float | None]:
+    log.debug("Starting language detection | path=%s", path)
     try:
         _, info = get_detector_model().transcribe(
             str(path),
@@ -47,6 +49,12 @@ def detect_language(path: Path) -> tuple[str | None, float | None]:
     except (TypeError, ValueError):
         probability = None
     if probability is not None and probability < load_settings().detect_discard_min_prob:
+        log.debug(
+            "Discarding weak language detection | path=%s | language=%s | prob=%.3f",
+            path,
+            language,
+            probability,
+        )
         return None, probability
 
     if language:

@@ -11,6 +11,7 @@ dependencies = [
   "fastapi==0.135.1",
   "python-multipart==0.0.22",
   "python-dotenv==1.2.2",
+  "exocort-services-common",
   "uvicorn[standard]==0.41.0",
   "pyobjc-core==12.1",
   "pyobjc-framework-ApplicationServices==12.1",
@@ -24,6 +25,9 @@ dev = ["pytest==9.0.2"]
 
 [project.scripts]
 mac-ocr-service = "app.main:main"
+
+[tool.uv.sources]
+exocort-services-common = { path = "../common", editable = true }
 
 [tool.setuptools.packages.find]
 include = ["app*", "src*"]

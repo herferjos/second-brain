@@ -61,7 +61,6 @@ def _capture_vad_segment(
         samplerate=config.sample_rate,
         channels=config.channels,
         dtype="int16",
-        blocksize=window_frames,
     ) as stream:
         while True:
             chunk, _ = stream.read(window_frames)

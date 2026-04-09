@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 import uvicorn
 from fastapi import FastAPI
 
@@ -14,8 +12,10 @@ app.include_router(api_router)
 
 def main() -> None:
     settings = load_settings()
-    logging.basicConfig(
-        level=settings.log_level,
-        format="%(asctime)s | %(levelname)s | %(message)s",
+    uvicorn.run(
+        "app.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=True,
+        log_level=settings.log_level,
     )
-    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=True)

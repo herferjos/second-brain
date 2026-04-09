@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from tempfile import gettempdir
 from uuid import uuid4
@@ -8,6 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from starlette.responses import Response
 
+from common.logs import get_logger
 from src.asr import (
     _is_no_speech_error,
     ensure_speech_permission,
@@ -16,7 +16,7 @@ from src.asr import (
 from src.config import load_settings
 from src.transcription import resolve_request_locale, transcription_text
 
-log = logging.getLogger("mac_asr")
+log = get_logger("mac_asr", "api")
 
 router = APIRouter()
 
@@ -31,6 +31,14 @@ async def transcribe_audio(
     temperature: float | None = Form(None),
 ) -> object:
     settings = load_settings()
+    log.debug(
+        "Received ASR request | filename=%s | model=%s | language=%s | response_format=%s | temperature=%s",
+        file.filename,
+        model,
+        language,
+        response_format,
+        temperature,
+    )
     if not ensure_speech_permission(prompt=settings.prompt_permission):
         raise HTTPException(
             status_code=409,
@@ -40,8 +48,11 @@ async def transcribe_audio(
     path = Path(gettempdir()) / f"{uuid4().hex}.wav"
     try:
         path.write_bytes(await file.read())
+        log.debug("Stored ASR temp audio | path=%s | filename=%s", path, file.filename)
         locale = resolve_request_locale(path, language)
+        log.debug("Resolved ASR locale | requested=%s | resolved=%s", language, locale)
         if not locale:
+            log.debug("Skipping ASR request with empty locale | path=%s", path)
             return Response(status_code=204)
         try:
             result = transcribe_audio_file(
@@ -57,6 +68,12 @@ async def transcribe_audio(
                     file.filename,
                 )
                 return Response(status_code=204)
+            log.debug(
+                "ASR response ready | path=%s | locale=%s | text_len=%s",
+                path,
+                locale,
+                len(text),
+            )
             return {
                 "text": text,
                 "task": "transcribe",
@@ -73,4 +90,5 @@ async def transcribe_audio(
                 return Response(status_code=204)
             raise
     finally:
+        log.debug("Cleaning ASR temp audio | path=%s", path)
         path.unlink(missing_ok=True)

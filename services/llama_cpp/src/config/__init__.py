@@ -46,6 +46,7 @@ def load_settings() -> LlamaCppSettings:
     return LlamaCppSettings(
         host=_str("LLAMA_CPP_HOST", "127.0.0.1"),
         port=_int("LLAMA_CPP_PORT", 9100),
+        log_level=_str("LLAMA_CPP_LOG_LEVEL", "info").lower(),
         model_id=model_id,
         quantization=quantization,
         model_dir=model_dir,
@@ -55,7 +56,7 @@ def load_settings() -> LlamaCppSettings:
         temperature=_float("LLAMA_CPP_TEMPERATURE", 0.2),
         n_batch=_int("LLAMA_CPP_N_BATCH", 512),
         seed=_int("LLAMA_CPP_SEED", 42),
-    )
+)
 
 
 __all__ = ["LlamaCppSettings", "load_settings"]

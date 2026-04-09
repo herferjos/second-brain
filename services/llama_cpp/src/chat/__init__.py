@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import threading
 import time
 from typing import Any
@@ -10,11 +9,13 @@ from fastapi import HTTPException
 from huggingface_hub import hf_hub_download
 from llama_cpp import Llama
 
+from common.logs import get_logger
+
 from .models import ChatCompletionRequest, ChatMessage
 from ..config import LlamaCppSettings, load_settings
 
 
-log = logging.getLogger("llama_cpp")
+log = get_logger("llama_cpp")
 
 _settings: LlamaCppSettings | None = None
 _llama = None

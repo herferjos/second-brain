@@ -7,14 +7,14 @@ from pathlib import Path
 
 from exocort.config import ExocortSettings, load_config
 
-DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.toml"
+DEFAULT_CONFIG_PATH = Path("config.toml")
 
 
 def build_services(config: ExocortSettings) -> list[threading.Thread]:
     services: list[threading.Thread] = []
 
     if config.audio.enabled:
-        from exocort.capturer.audio import audio_loop
+        from exocort.capturer.audio.capture import audio_loop
 
         services.append(
             _build_thread(
@@ -25,7 +25,7 @@ def build_services(config: ExocortSettings) -> list[threading.Thread]:
         )
 
     if config.screen.enabled:
-        from exocort.capturer.screen import screenshot_loop
+        from exocort.capturer.screen.capture import screenshot_loop
 
         services.append(
             _build_thread(
@@ -36,7 +36,7 @@ def build_services(config: ExocortSettings) -> list[threading.Thread]:
         )
 
     if config.processor.enabled:
-        from exocort.processor import processing_loop
+        from exocort.processor.service import processing_loop
 
         services.append(
             _build_thread(

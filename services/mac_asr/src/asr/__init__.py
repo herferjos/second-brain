@@ -8,25 +8,35 @@ import Foundation
 import objc
 import Speech
 
+from common.logs import get_logger
+
 from ..config import load_settings
 from .models import Transcription
 
 
+log = get_logger("mac_asr", "asr")
 _RECOGNIZER_CACHE: dict[str, objc.pyobjc_object] = {}
 _RECOGNIZER_LOCK = threading.Lock()
 
 
 def _is_no_speech_error(error_message: str) -> bool:
     msg = (error_message or "").lower()
-    return ("no speech detected" in msg) or (
-        "kafassistanterrordomain" in msg and "code=1110" in msg
-    )
+    if "no speech detected" in msg:
+        return True
+    if "kafassistanterrordomain" not in msg:
+        return False
+    if "code=1110" in msg:
+        return True
+    if "code=203" in msg and "retry" in msg:
+        return True
+    return "sirispeecherrordomain" in msg and "code=1" in msg and "retry" in msg
 
 
 def ensure_speech_permission(prompt: bool = False) -> bool:
     status = int(Speech.SFSpeechRecognizer.authorizationStatus())
     authorized = int(getattr(Speech, "SFSpeechRecognizerAuthorizationStatusAuthorized", 3))
     not_determined = int(getattr(Speech, "SFSpeechRecognizerAuthorizationStatusNotDetermined", 0))
+    log.debug("Checking speech permission | status=%s | prompt=%s", status, prompt)
 
     if status == authorized:
         return True
@@ -47,6 +57,12 @@ def ensure_speech_permission(prompt: bool = False) -> bool:
 
 def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Transcription:
     locale_id = (locale or "").strip()
+    log.debug(
+        "Starting ASR transcription | path=%s | locale=%s | timeout_s=%s",
+        path,
+        locale_id,
+        timeout_s,
+    )
     with _RECOGNIZER_LOCK:
         recognizer = _RECOGNIZER_CACHE.get(locale_id)
 
@@ -63,6 +79,9 @@ def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Trans
         if recognizer is not None:
             with _RECOGNIZER_LOCK:
                 recognizer = _RECOGNIZER_CACHE.setdefault(locale_id, recognizer)
+                log.debug("Created and cached recognizer | locale=%s", locale_id)
+    else:
+        log.debug("Reusing cached recognizer | locale=%s", locale_id)
 
     if recognizer is None:
         raise RuntimeError(f"Speech recognizer is not available for locale '{locale_id}'.")
@@ -96,6 +115,12 @@ def transcribe_audio_file(path: Path, *, locale: str, timeout_s: float) -> Trans
     if state["error"] and not state["text"]:
         raise RuntimeError(state["error"])
 
+    log.debug(
+        "Finished ASR transcription | path=%s | locale=%s | text_len=%s",
+        path,
+        locale_id,
+        len(state["text"]),
+    )
     return Transcription(text=str(state["text"]).strip())
 
 

@@ -11,7 +11,7 @@ class MacAsrSettings:
     default_locale: str
     transcription_timeout_s: float
     prompt_permission: bool
-    log_level: int
+    log_level: str
     detect_model: str
     detect_device: str
     detect_compute_type: str

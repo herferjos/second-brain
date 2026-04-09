@@ -7,6 +7,10 @@ name = "exocort-services-common"
 version = "0.1.0"
 description = "Shared utilities for exocort services"
 requires-python = ">=3.11"
+dependencies = [
+  "fastapi==0.135.1",
+  "pydantic==2.12.5",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

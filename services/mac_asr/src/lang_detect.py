@@ -4,7 +4,7 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 
-from common.logs import get_logger
+from common.utils.logs import get_logger
 
 from .config import load_settings
 

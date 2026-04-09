@@ -4,6 +4,7 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 
+from common.models.asr import TranscriptionResponse
 from src.config import load_settings
 
 
@@ -21,7 +22,7 @@ def transcribe_path(
     *,
     language: str | None,
     prompt: str | None,
-) -> dict[str, object] | None:
+) -> TranscriptionResponse | None:
     segments, _info = model.transcribe(
         str(path),
         beam_size=settings.beam_size,
@@ -33,12 +34,11 @@ def transcribe_path(
     text = " ".join(text_parts).strip()
     if not text:
         return None
-    return {
-        "text": text,
-        "task": "transcribe",
-        "language": language or settings.language,
-        "duration": None,
-    }
+    return TranscriptionResponse(
+        text=text,
+        language=language or settings.language or "",
+        duration=None,
+    )
 
 
 __all__ = ["settings", "transcribe_path"]

@@ -96,6 +96,16 @@ provides-extras = ["dev"]
 name = "exocort-services-common"
 version = "0.1.0"
 source = { editable = "../common" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = "==0.135.1" },
+    { name = "pydantic", specifier = "==2.12.5" },
+]
 
 [[package]]
 name = "fastapi"

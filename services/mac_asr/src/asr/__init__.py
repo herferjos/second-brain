@@ -8,7 +8,8 @@ import Foundation
 import objc
 import Speech
 
-from common.logs import get_logger
+from common.models.asr import TranscriptionRequest, TranscriptionResponse
+from common.utils.logs import get_logger
 
 from ..config import load_settings
 from .models import Transcription
@@ -196,6 +197,8 @@ def resolve_locale(detected_code: str | None, explicit: str | None) -> str:
 
 __all__ = [
     "Transcription",
+    "TranscriptionRequest",
+    "TranscriptionResponse",
     "_is_no_speech_error",
     "ensure_speech_permission",
     "transcribe_audio_file",

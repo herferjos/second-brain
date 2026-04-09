@@ -33,8 +33,6 @@ todo
 
 .pytest_cache/
 
-models/
-
 .python-version
 
 .claude/

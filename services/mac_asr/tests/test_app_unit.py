@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from starlette.responses import Response
 from starlette.datastructures import UploadFile
 
+from common.models.asr import TranscriptionRequest, TranscriptionResponse
 from app.api.v1.endpoints.transcriptions import transcribe_audio
 
 
@@ -40,14 +41,17 @@ def test_transcribe_audio_returns_transcription(
     payload = asyncio.run(
         transcribe_audio(
             file=upload,
-            model="whisper-1",
-            language="en",
-            prompt="ignore this",
-            response_format="json",
-            temperature=0.0,
+            payload=TranscriptionRequest(
+                model="whisper-1",
+                language="en",
+                prompt="ignore this",
+                response_format="json",
+                temperature=0.0,
+            ),
         )
     )
-    assert payload == {
+    assert isinstance(payload, TranscriptionResponse)
+    assert payload.model_dump() == {
         "text": "hello world",
         "task": "transcribe",
         "language": "en",
@@ -63,7 +67,7 @@ def test_transcribe_audio_requires_permission(monkeypatch: pytest.MonkeyPatch) -
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(transcribe_audio(file=upload, language="en"))
+        asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="en")))
 
     assert exc.value.status_code == 409
 
@@ -89,7 +93,7 @@ def test_transcribe_audio_no_speech_returns_204(
     )
 
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
-    resp = asyncio.run(transcribe_audio(file=upload, language="es-ES"))
+    resp = asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="es-ES")))
     assert isinstance(resp, Response)
     assert resp.status_code == 204
 
@@ -117,7 +121,7 @@ def test_transcribe_audio_retry_error_returns_204(
     )
 
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
-    resp = asyncio.run(transcribe_audio(file=upload, language="es-ES"))
+    resp = asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="es-ES")))
     assert isinstance(resp, Response)
     assert resp.status_code == 204
 
@@ -146,7 +150,7 @@ def test_transcribe_audio_empty_text_returns_204(
     )
 
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
-    resp = asyncio.run(transcribe_audio(file=upload, language="es-ES"))
+    resp = asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="es-ES")))
     assert isinstance(resp, Response)
     assert resp.status_code == 204
 
@@ -187,9 +191,12 @@ def test_transcribe_audio_auto_language_uses_default_detector(
     )
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
     payload = asyncio.run(
-        transcribe_audio(file=upload, model="whisper-1", language="auto")
+        transcribe_audio(
+            file=upload,
+            payload=TranscriptionRequest(model="whisper-1", language="auto"),
+        )
     )
-    assert payload == {
+    assert payload.model_dump() == {
         "text": "hello",
         "task": "transcribe",
         "language": "en-US",

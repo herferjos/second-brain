@@ -5,12 +5,13 @@ from pathlib import Path
 import Vision
 import objc
 
-from common.logs import get_logger
+from common.models.ocr import OcrResponse
+from common.utils.logs import get_logger
 
 log = get_logger("mac_ocr", "ocr")
 
 
-def ocr_image_path(path: Path) -> dict[str, object]:
+def ocr_image_path(path: Path) -> OcrResponse:
     image_path = path.expanduser().resolve()
     log.debug("Starting OCR | path=%s", image_path)
     if not image_path.exists():
@@ -25,22 +26,24 @@ def ocr_image_path(path: Path) -> dict[str, object]:
         len(text),
         text[:200],
     )
-    return {
-        "pages": [
-            {
-                "index": 0,
-                "markdown": text,
-                "images": [],
-            }
-        ],
-        "model": "mac-ocr",
-        "usage_info": {
-            "pages_processed": 1,
-            "doc_size_bytes": image_path.stat().st_size,
-        },
-        "document_annotation": None,
-        "object": "ocr",
-    }
+    return OcrResponse.model_validate(
+        {
+            "pages": [
+                {
+                    "index": 0,
+                    "markdown": text,
+                    "images": [],
+                }
+            ],
+            "model": "mac-ocr",
+            "usage_info": {
+                "pages_processed": 1,
+                "doc_size_bytes": image_path.stat().st_size,
+            },
+            "document_annotation": None,
+            "object": "ocr",
+        }
+    )
 
 
 def _recognize_texts_from_path(path: Path) -> list[str]:
@@ -106,4 +109,4 @@ def _coerce_confidence(value: object) -> float:
         return 0.0
 
 
-__all__ = ["ocr_image_path"]
+__all__ = ["OcrResponse", "ocr_image_path"]

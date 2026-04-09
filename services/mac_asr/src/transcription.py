@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from common.logs import get_logger
+from common.utils.logs import get_logger
 
 from .asr import resolve_locale
 from .config import load_settings

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from common.models.ocr import OcrResponse
 import src.ocr as ocr_module
 from src.ocr import ocr_image_path
 
@@ -25,9 +26,10 @@ def test_ocr_image_path_returns_mistral_style_payload(
 
     payload = ocr_image_path(image_path)
 
-    assert payload["pages"][0]["markdown"] == "hello world"
-    assert payload["usage_info"]["pages_processed"] == 1
-    assert payload["object"] == "ocr"
+    assert isinstance(payload, OcrResponse)
+    assert payload.pages[0].markdown == "hello world"
+    assert payload.usage_info.pages_processed == 1
+    assert payload.object == "ocr"
 
 
 def test_ocr_image_path_missing_file_raises(tmp_path: Path) -> None:

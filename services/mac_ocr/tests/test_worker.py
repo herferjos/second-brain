@@ -6,6 +6,7 @@ import base64
 import pytest
 from fastapi import HTTPException
 
+from common.models.ocr import OcrResponse
 from app.api.v1.endpoints.ocr import process_image
 from src.document import OcrDocumentPayload, OcrRequestPayload
 
@@ -23,13 +24,13 @@ def test_process_image_accepts_litellm_image_url(
     def fake_ocr_image_path(path):
         captured["bytes"] = path.read_bytes()
         captured["suffix"] = path.suffix
-        return {
-            "pages": [{"index": 0, "markdown": "hello world", "images": []}],
-            "model": "mac-ocr",
-            "usage_info": {"pages_processed": 1, "doc_size_bytes": len(image_bytes)},
-            "document_annotation": None,
-            "object": "ocr",
-        }
+        return OcrResponse(
+            pages=[{"index": 0, "markdown": "hello world", "images": []}],
+            model="mac-ocr",
+            usage_info={"pages_processed": 1, "doc_size_bytes": len(image_bytes)},
+            document_annotation=None,
+            object="ocr",
+        )
 
     monkeypatch.setattr("app.api.v1.endpoints.ocr.ocr_image_path", fake_ocr_image_path)
 
@@ -39,7 +40,7 @@ def test_process_image_accepts_litellm_image_url(
     )
     response = asyncio.run(process_image(payload))
 
-    assert response["object"] == "ocr"
+    assert response.object == "ocr"
     assert captured["bytes"] == image_bytes
     assert captured["suffix"] == ".png"
 

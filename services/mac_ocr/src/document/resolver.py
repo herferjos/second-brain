@@ -7,7 +7,7 @@ from tempfile import NamedTemporaryFile
 
 from fastapi import HTTPException
 
-from common.logs import get_logger
+from common.utils.logs import get_logger
 
 from .models import OcrDocumentPayload
 

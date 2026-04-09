@@ -4,10 +4,11 @@ from pathlib import Path
 from tempfile import gettempdir
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from starlette.responses import Response
 
-from common.logs import get_logger
+from common.models.asr import TranscriptionRequest, TranscriptionResponse
+from common.utils.logs import get_logger
 from src.asr import (
     _is_no_speech_error,
     ensure_speech_permission,
@@ -21,23 +22,19 @@ log = get_logger("mac_asr", "api")
 router = APIRouter()
 
 
-@router.post("/v1/audio/transcriptions", response_model=None)
+@router.post("/v1/audio/transcriptions", response_model=TranscriptionResponse)
 async def transcribe_audio(
     file: UploadFile = File(...),
-    model: str | None = Form(None),
-    language: str | None = Form(None),
-    prompt: str | None = Form(None),
-    response_format: str | None = Form(None),
-    temperature: float | None = Form(None),
-) -> object:
+    payload: TranscriptionRequest = Depends(TranscriptionRequest.as_form),
+) -> TranscriptionResponse | Response:
     settings = load_settings()
     log.debug(
         "Received ASR request | filename=%s | model=%s | language=%s | response_format=%s | temperature=%s",
         file.filename,
-        model,
-        language,
-        response_format,
-        temperature,
+        payload.model,
+        payload.language,
+        payload.response_format,
+        payload.temperature,
     )
     if not ensure_speech_permission(prompt=settings.prompt_permission):
         raise HTTPException(
@@ -49,8 +46,8 @@ async def transcribe_audio(
     try:
         path.write_bytes(await file.read())
         log.debug("Stored ASR temp audio | path=%s | filename=%s", path, file.filename)
-        locale = resolve_request_locale(path, language)
-        log.debug("Resolved ASR locale | requested=%s | resolved=%s", language, locale)
+        locale = resolve_request_locale(path, payload.language)
+        log.debug("Resolved ASR locale | requested=%s | resolved=%s", payload.language, locale)
         if not locale:
             log.debug("Skipping ASR request with empty locale | path=%s", path)
             return Response(status_code=204)
@@ -74,12 +71,11 @@ async def transcribe_audio(
                 locale,
                 len(text),
             )
-            return {
-                "text": text,
-                "task": "transcribe",
-                "language": locale,
-                "duration": None,
-            }
+            return TranscriptionResponse(
+                text=text,
+                language=locale,
+                duration=None,
+            )
         except RuntimeError as exc:
             if _is_no_speech_error(str(exc)):
                 log.info(

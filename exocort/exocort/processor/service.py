@@ -2,69 +2,122 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 from pathlib import Path
-import time
-from typing import Any
 
-from exocort.config import EndpointSettings, FileProcessorSettings
+from watchdog.events import (
+    FileCreatedEvent,
+    FileModifiedEvent,
+    FileMovedEvent,
+    FileSystemEvent,
+    FileSystemEventHandler,
+)
+from watchdog.observers import Observer
+
+from exocort.config import EndpointSettings, ProcessorSettings
 from litellm import ocr, transcription
+
+from .asr.service import asr_text
+from .ocr.service import ocr_text
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".mp4", ".mpeg", ".mpga", ".webm", ".ogg"}
+SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | AUDIO_EXTENSIONS
+QUEUE_TIMEOUT_SECONDS = 0.5
 
 
-def processing_loop(config: FileProcessorSettings) -> None:
+def processing_loop(config: ProcessorSettings) -> None:
     config.watch_dir.mkdir(parents=True, exist_ok=True)
-    config.output.root_path.mkdir(parents=True, exist_ok=True)
+    config.output_dir.mkdir(parents=True, exist_ok=True)
 
     print(
-        f"[processor] watching {config.watch_dir} every "
-        f"{config.poll_interval_seconds}s -> {config.output.root_path}"
+        f"[processor] watching {config.watch_dir} -> {config.output_dir} "
+        "with filesystem events"
     )
 
-    while True:
-        processed = process_pending_files(config)
-        if processed:
-            print(f"[processor] processed {processed} file(s)")
-        time.sleep(config.poll_interval_seconds)
+    processed = process_existing_files(config)
+    if processed:
+        print(f"[processor] processed {processed} existing file(s)")
+
+    event_queue: queue.Queue[Path] = queue.Queue()
+    event_handler = _QueuedPathHandler(event_queue)
+    observer = Observer()
+    observer.schedule(event_handler, str(config.watch_dir), recursive=True)
+    observer.start()
+
+    try:
+        while True:
+            try:
+                file_path = event_queue.get(timeout=QUEUE_TIMEOUT_SECONDS)
+            except queue.Empty:
+                continue
+
+            _process_file_if_supported(config, file_path)
+            event_handler.mark_done(file_path)
+            _drain_queue(config, event_queue, event_handler)
+    finally:
+        observer.stop()
+        observer.join()
 
 
-def process_pending_files(config: FileProcessorSettings) -> int:
+def process_existing_files(config: ProcessorSettings) -> int:
     processed = 0
     for file_path in _iter_supported_files(config.watch_dir):
-        endpoint = _get_endpoint_config(config, file_path)
-        if endpoint is None:
-            continue
-        output_path = _build_output_path(config, file_path)
-        if output_path.exists():
-            continue
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            response = _process_file(file_path, endpoint)
-        except Exception as exc:
-            error_path = output_path.with_suffix(".error.txt")
-            error_path.write_text(str(exc), encoding="utf-8")
-            print(f"[processor] failed {file_path} -> {error_path}: {exc}")
-            continue
-        output_path.write_text(
-            json.dumps({"text": _extract_text(response)}, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        print(f"[processor] saved {file_path} -> {output_path}")
-        processed += 1
+        if _process_file_if_supported(config, file_path):
+            processed += 1
     return processed
+
+
+def _drain_queue(
+    config: ProcessorSettings,
+    event_queue: queue.Queue[Path],
+    event_handler: "_QueuedPathHandler",
+) -> None:
+    while True:
+        try:
+            file_path = event_queue.get_nowait()
+        except queue.Empty:
+            return
+        _process_file_if_supported(config, file_path)
+        event_handler.mark_done(file_path)
 
 
 def _iter_supported_files(root: Path) -> list[Path]:
     return sorted(
         path
         for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS | AUDIO_EXTENSIONS
+        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
     )
 
 
+def _process_file_if_supported(config: ProcessorSettings, file_path: Path) -> bool:
+    endpoint = _get_endpoint_config(config, file_path)
+    if endpoint is None:
+        return False
+
+    output_path = _build_output_path(config, file_path)
+    if output_path.exists():
+        return False
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        text = _process_file(file_path, endpoint)
+    except Exception as exc:
+        error_path = output_path.with_suffix(".error.txt")
+        error_path.write_text(str(exc), encoding="utf-8")
+        print(f"[processor] failed {file_path} -> {error_path}: {exc}")
+        return False
+
+    output_path.write_text(
+        json.dumps({"text": text}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"[processor] saved {file_path} -> {output_path}")
+    return True
+
+
 def _get_endpoint_config(
-    config: FileProcessorSettings,
+    config: ProcessorSettings,
     file_path: Path,
 ) -> EndpointSettings | None:
     suffix = file_path.suffix.lower()
@@ -75,58 +128,72 @@ def _get_endpoint_config(
     return None
 
 
-def _build_output_path(config: FileProcessorSettings, file_path: Path) -> Path:
+def _build_output_path(config: ProcessorSettings, file_path: Path) -> Path:
     relative_path = file_path.relative_to(config.watch_dir)
-    return config.output.root_path / relative_path.parent / f"{relative_path.name}.json"
+    return config.output_dir / relative_path.parent / f"{relative_path.name}.json"
 
 
-def _process_file(file_path: Path, endpoint: EndpointSettings) -> Any:
+def _process_file(file_path: Path, endpoint: EndpointSettings) -> str:
     api_key = os.getenv(endpoint.api_key_env, "test_key") if endpoint.api_key_env else "test_key"
 
     if file_path.suffix.lower() in IMAGE_EXTENSIONS:
-        
-        return ocr(
-            model=endpoint.model,
-            document={"type": "file", "file": str(file_path)},
-            api_base=endpoint.api_base,
-            api_key=api_key,
-        )
+        return _process_ocr_file(file_path, endpoint, api_key)
 
+    return _process_asr_file(file_path, endpoint, api_key)
+
+
+def _process_ocr_file(file_path: Path, endpoint: EndpointSettings, api_key: str) -> str:
+    response = ocr(
+        model=endpoint.model,
+        document={"type": "file", "file": str(file_path)},
+        api_base=endpoint.api_base,
+        api_key=api_key,
+    )
+    return ocr_text(response)
+
+
+def _process_asr_file(file_path: Path, endpoint: EndpointSettings, api_key: str) -> str:
     with file_path.open("rb") as audio_file:
-        return transcription(
+        response = transcription(
             model=endpoint.model,
             file=audio_file,
             api_base=endpoint.api_base,
             api_key=api_key,
         )
+    return asr_text(response)
 
 
-def _extract_text(value: Any) -> str:
-    text = _text_from_value(value, "text")
-    if text:
-        return text
+class _QueuedPathHandler(FileSystemEventHandler):
+    def __init__(self, event_queue: queue.Queue[Path]) -> None:
+        super().__init__()
+        self._event_queue = event_queue
+        self._queued: set[Path] = set()
 
-    pages = _value_from_source(value, "pages")
-    if isinstance(pages, (list, tuple)):
-        page_texts: list[str] = []
-        for page in pages:
-            page_text = _text_from_value(page, "text") or _text_from_value(page, "markdown")
-            if page_text:
-                page_texts.append(page_text)
-        if page_texts:
-            return "\n".join(page_texts).strip()
+    def on_created(self, event: FileCreatedEvent) -> None:  # type: ignore[override]
+        self._queue_event(event)
 
-    return ""
+    def on_modified(self, event: FileModifiedEvent) -> None:  # type: ignore[override]
+        self._queue_event(event)
 
+    def on_moved(self, event: FileMovedEvent) -> None:  # type: ignore[override]
+        if event.is_directory:
+            return
+        self._queue_path(Path(event.dest_path))
 
-def _text_from_value(value: Any, key: str) -> str:
-    raw_value = _value_from_source(value, key)
-    if raw_value is None:
-        return ""
-    return str(raw_value).strip()
+    def mark_done(self, file_path: Path) -> None:
+        resolved = file_path.resolve()
+        self._queued.discard(resolved)
 
+    def _queue_event(self, event: FileSystemEvent) -> None:
+        if event.is_directory:
+            return
+        self._queue_path(Path(event.src_path))
 
-def _value_from_source(value: Any, key: str) -> Any:
-    if isinstance(value, dict):
-        return value.get(key)
-    return getattr(value, key, None)
+    def _queue_path(self, file_path: Path) -> None:
+        resolved = file_path.expanduser().resolve()
+        if resolved.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            return
+        if resolved in self._queued:
+            return
+        self._queued.add(resolved)
+        self._event_queue.put(resolved)

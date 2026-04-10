@@ -1,13 +1,11 @@
-[capturer]
-path = "../tmp"
-
-[capturer.audio]
+[audio]
 enabled = true
 chunk_seconds = 30
 sample_rate = 16000
 channels = 1
+output_dir = "../tmp/audio"
 
-[capturer.audio.vad]
+[audio.vad]
 enabled = true
 aggressiveness = 3
 frame_ms = 20
@@ -15,18 +13,15 @@ pre_roll_seconds = 0.2
 min_speech_seconds = 0.3
 min_silence_seconds = 0.6
 
-[capturer.screen]
+[screen]
 enabled = true
 interval_seconds = 5
+output_dir = "../tmp/screen"
 
 [processor]
 enabled = true
 watch_dir = "../tmp"
-poll_interval_seconds = 5
-max_retries = 3
-
-[processor.output]
-path = "../tmp/processed"
+output_dir = "../tmp/processed"
 
 [processor.ocr]
 model = "mistral/mistral-ocr-latest" # This model string must match a real LiteLLM provider (mistral/…, openai/…, etc.).

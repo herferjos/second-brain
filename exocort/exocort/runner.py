@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import threading
-from collections.abc import Callable
 from pathlib import Path
 
 from exocort.config import ExocortSettings, load_config
@@ -10,17 +9,17 @@ from exocort.config import ExocortSettings, load_config
 DEFAULT_CONFIG_PATH = Path("config.toml")
 
 
-def build_services(config: ExocortSettings) -> list[threading.Thread]:
+def run(config: ExocortSettings) -> None:
     services: list[threading.Thread] = []
 
     if config.audio.enabled:
         from exocort.capturer.audio.capture import audio_loop
 
         services.append(
-            _build_thread(
-                "audio-capturer",
-                audio_loop,
-                config.audio_capture,
+            threading.Thread(
+                target=audio_loop,
+                args=(config.audio,),
+                name="audio-capturer",
             )
         )
 
@@ -28,10 +27,10 @@ def build_services(config: ExocortSettings) -> list[threading.Thread]:
         from exocort.capturer.screen.capture import screenshot_loop
 
         services.append(
-            _build_thread(
-                "screen-capturer",
-                screenshot_loop,
-                config.screen_capture,
+            threading.Thread(
+                target=screenshot_loop,
+                args=(config.screen,),
+                name="screen-capturer",
             )
         )
 
@@ -39,18 +38,12 @@ def build_services(config: ExocortSettings) -> list[threading.Thread]:
         from exocort.processor.service import processing_loop
 
         services.append(
-            _build_thread(
-                "file-processor",
-                processing_loop,
-                config.processor,
+            threading.Thread(
+                target=processing_loop,
+                args=(config.processor,),
+                name="file-processor",
             )
         )
-
-    return services
-
-
-def run(config: ExocortSettings) -> None:
-    services = build_services(config)
 
     if not services:
         print("[exocort] no services enabled, nothing to run.")
@@ -80,10 +73,6 @@ def main() -> None:
     args = parse_args()
     config = load_config(args.config)
     run(config)
-
-
-def _build_thread(name: str, target: Callable[[object], None], config: object) -> threading.Thread:
-    return threading.Thread(target=target, args=(config,), name=name)
 
 
 if __name__ == "__main__":

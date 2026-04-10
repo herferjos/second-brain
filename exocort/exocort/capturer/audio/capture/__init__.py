@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
 import io
 import time
@@ -9,13 +8,13 @@ import wave
 import numpy as np
 import sounddevice as sd
 
-from exocort.config import AudioCaptureSettings
+from exocort.config import AudioSettings
 
 from ..vad import WebRTCVAD
 from .models import _SegmentCollector
 
 
-def capture_audio_chunk(config: AudioCaptureSettings) -> tuple[np.ndarray, bytes]:
+def capture_audio_chunk(config: AudioSettings) -> tuple[np.ndarray, bytes]:
     frames = int(config.chunk_seconds * config.sample_rate)
     recording = sd.rec(
         frames,
@@ -27,7 +26,7 @@ def capture_audio_chunk(config: AudioCaptureSettings) -> tuple[np.ndarray, bytes
     return recording, _encode_wav(config, recording)
 
 
-def _encode_wav(config: AudioCaptureSettings, recording: np.ndarray) -> bytes:
+def _encode_wav(config: AudioSettings, recording: np.ndarray) -> bytes:
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wav_file:
         wav_file.setnchannels(config.channels)
@@ -38,7 +37,7 @@ def _encode_wav(config: AudioCaptureSettings, recording: np.ndarray) -> bytes:
 
 
 def _capture_vad_segment(
-    config: AudioCaptureSettings,
+    config: AudioSettings,
     vad: WebRTCVAD,
 ) -> tuple[np.ndarray, float]:
     window_frames = max(1, vad.frame_samples)
@@ -71,10 +70,7 @@ def _capture_vad_segment(
             return segment, time.monotonic() - started_at
 
 
-def audio_loop(
-    config: AudioCaptureSettings,
-    handler: Callable[[bytes], None] | None = None,
-) -> None:
+def audio_loop(config: AudioSettings) -> None:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     output_dir = config.output_dir
     vad = WebRTCVAD(config.vad, config.sample_rate) if config.vad.enabled else None
@@ -92,8 +88,6 @@ def audio_loop(
         file_path.write_bytes(audio_bytes)
         vad_suffix = f" (VAD ratio {vad.last_ratio:.2%})" if vad is not None else ""
         print(f"[audio] captured {len(audio_bytes)} bytes ({elapsed:.1f}s) → {file_path}{vad_suffix}")
-        if handler is not None:
-            handler(audio_bytes)
 
 
 __all__ = ["capture_audio_chunk", "audio_loop"]

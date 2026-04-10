@@ -1,6 +1,6 @@
 # Mac OCR Service
 
-One job: **OCR an image**. HTTP API that accepts the LiteLLM-normalized OCR input Exocort sends and returns a Mistral-style OCR payload using macOS Vision.
+One job: **OCR an image**. HTTP API that accepts the LiteLLM-normalized OCR input Exocort sends and returns a Mistral-style OCR payload using the native macOS Vision framework. The service follows the Mistral OCR response shape so Exocort can treat it as a Mistral-style OCR backend.
 
 ## Endpoint
 

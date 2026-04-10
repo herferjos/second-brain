@@ -1,6 +1,6 @@
 # Mac Transcription Service
 
-One job: **transcribe audio**. HTTP API that accepts an audio file and returns a LiteLLM/OpenAI-compatible transcription payload using the macOS Speech framework.
+One job: **transcribe audio**. HTTP API that accepts an audio file and returns a LiteLLM/OpenAI-compatible transcription payload using the native macOS Speech framework. The service is shaped like the OpenAI Whisper API so Exocort can treat it as a Whisper-style ASR backend.
 
 ## Endpoint
 

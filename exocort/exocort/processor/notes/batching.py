@@ -114,11 +114,8 @@ def _render_batch_content(artifacts: tuple[ProcessedArtifact, ...]) -> str:
 
 
 def _render_artifact_content(artifact: ProcessedArtifact) -> str:
-    kind_label = "screen" if artifact.source_kind == "ocr" else "audio"
-    source_ref = artifact.source_relpath or artifact.artifact_id
     text = artifact.text.strip()
     return (
-        f"source: {kind_label}\n"
-        f"ref: {source_ref}\n"
+        f"kind: {artifact.source_kind}\n"
         f"content:\n{text}"
     ).strip()

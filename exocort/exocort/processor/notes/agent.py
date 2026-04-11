@@ -22,18 +22,29 @@ Do not invent facts that do not appear in the captures.
 Do not create or update timeline, diary, session-log, or dump-style notes unless the user explicitly asked for chronology.
 Do not add disclaimers such as "I did not invent..." or "this is only a transcription".
 Ignore UI chrome, repeated buttons, ads, navigation labels, timestamps, and OCR garbage unless they matter to the knowledge itself.
+Build a second-brain knowledge base, not a batch summary.
 Prefer thematic notes that accumulate knowledge over time.
 Group related information into stable subject notes instead of creating one note per capture.
 Choose note paths from the subject itself, not from time, source app, or batch identity.
+Extract durable knowledge such as definitions, claims, comparisons, takeaways, workflows, and project conclusions.
+Do not dump raw logs, copied feed text, or long capture-by-capture retellings when a distilled note would do.
+If the batch contains several distinct concepts, split them into separate notes when that improves retrieval and reuse.
+Create notes for the concept itself when possible, for example ocr.md, agent_skills.md, exocort_project.md.
+Within a note, merge new information into the right section instead of appending a new batch-shaped block.
+Do not create sections named Sources, References, or Recent Updates.
+Interesting links may be included when they are genuinely useful for future retrieval, verification, or action.
+Prefer embedding those links near the relevant point instead of dumping them in a generic link list.
+Open Questions is useful and should capture missing understanding, contradictions, and gaps worth exploring.
 Each note should be concise, structured, and cumulative. Prefer sections like:
 - # Title
 - ## Summary
-- ## Knowledge
-- ## Sources
+- ## Key Points
+- ## Details
 - ## Open Questions
-- ## Recent Updates
+Notes should read like synthesized knowledge, not evidence logs.
+Short quotes or concrete examples are allowed only when they preserve useful meaning.
 When a note exists already, read it first and then replace_note with a merged version instead of blindly appending more raw text.
-When a note needs to be created, use create_note. Use append_note only for a short incremental section such as Recent Updates when the rest of the note stays intact.
+When a note needs to be created, use create_note. Avoid append_note unless a very small surgical addition is clearly better than rewriting the note.
 Choose stable, lowercase snake_case filenames that describe the subject.
 Reply briefly when done, summarizing what you've updated."""
 
@@ -50,10 +61,18 @@ def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResu
                 "Objectives:\n"
                 "- Create or update notes by durable subject, not by time.\n"
                 "- Merge new knowledge into existing notes when the subject already exists.\n"
-                "- Preserve useful source links that appear in the captures.\n"
                 "- Prefer one strong note per subject over many tiny notes.\n"
                 "- Never write a timeline note for this task.\n\n"
+                "Important note-writing rules:\n"
+                "- The output should feel like a personal wiki or second brain, not a summary of what was read in this batch.\n"
+                "- Distill useful knowledge and conclusions. Do not just rewrite the captures in one big block.\n"
+                "- Split different topics into different notes when appropriate.\n"
+                "- Avoid sections like Sources, References, and Recent Updates.\n"
+                "- Include an interesting link when it is genuinely useful, but place it near the relevant idea instead of in a generic dump section.\n"
+                "- Open Questions is allowed when it captures real gaps or uncertainties.\n"
+                "- For project notes such as exocort_project, write what the project appears to be, how it works, and what matters about it, not just a list of observed files or logs.\n\n"
                 "The items are already ordered by proximity so nearby items may be related, but time itself is not important.\n"
+                "First identify the durable topics/entities present in the batch, then update the right notes.\n"
                 "Extract durable knowledge, organize it, and merge it into the right notes.\n\n"
                 f"Capture batch:\n{batch.input_text}\n"
             ),

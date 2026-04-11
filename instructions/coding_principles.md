@@ -5,6 +5,7 @@ This is the entry point for the project-specific guidance in Exocort.
 Read this first, then jump to the linked docs depending on what you are changing:
 
 - [architecture_principles.md](instructions/architecture_principles.md)
+- [notes_knowledge_principles.md](instructions/notes_knowledge_principles.md)
 - [service_principles.md](instructions/service_principles.md)
 - [runtime_observability.md](instructions/runtime_observability.md)
 

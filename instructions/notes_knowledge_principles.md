@@ -1,0 +1,37 @@
+# Notes Knowledge Principles
+
+This document defines the intended behavior for Exocort's notes processor.
+
+The goal is not to archive captures as summaries. The goal is to build a durable personal knowledge base: a wiki, an Obsidian-style vault, a second brain.
+
+## What Good Notes Look Like
+
+- Notes are organized by durable topics, concepts, tools, entities, projects, or areas of interest.
+- Notes accumulate understanding over time instead of mirroring one batch or one session.
+- Notes distill useful information into conclusions, takeaways, comparisons, definitions, workflows, and mental models.
+- Notes prefer synthesis over transcription. Copy exact wording only when the wording itself is important.
+- Notes should help future retrieval. A user should be able to open one note and quickly understand what is known about that topic.
+
+## What To Avoid
+
+- Do not create one note per batch, screenshot, audio clip, or browsing session.
+- Do not produce diary, timeline, or session-log notes unless the user explicitly asks for chronology.
+- Do not treat the output as a cleaned-up summary of "what was seen".
+- Do not keep sections such as `Sources`, `References`, or `Recent Updates` as a default structure.
+- Do not dump logs, UI chrome, repeated OCR fragments, or long unprocessed text blocks when the information can be synthesized.
+
+## Organization Rules
+
+- Choose note filenames from the subject, not from time or source.
+- Split distinct themes into different notes when that improves clarity and later reuse.
+- Merge new information into existing notes whenever the topic already exists.
+- Prefer a few strong notes with clear scopes over many vague aggregate notes.
+- Include a link when it is genuinely useful to preserve a canonical resource, benchmark, repo, paper, or action point.
+- Prefer placing links inline near the relevant claim or example instead of collecting them in a generic link dump.
+- Use `Open Questions` for missing understanding, contradictions, weak evidence, or things worth investigating next.
+
+## Examples
+
+- Reading several posts about OCR models should update notes such as `ocr.md`, `glm_ocr.md`, or another stable topic note, not a generic batch summary.
+- Reading about Agent Skills should update `agent_skills.md` with what it is, what problems it solves, and what differentiates it.
+- Seeing Exocort code, config, and runtime behavior should update `exocort_project.md` with a clearer model of the project, its architecture, and its operating loop.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.config import load_settings
+from src.config.settings import load_settings
 
 
 pytestmark = [pytest.mark.service, pytest.mark.unit]

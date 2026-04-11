@@ -8,7 +8,14 @@ import yaml
 
 from exocort.capturer.audio.vad import AudioVADConfig
 
-from .models import AudioSettings, EndpointSettings, ExocortSettings, ProcessorSettings, ScreenSettings
+from .models import (
+    AudioSettings,
+    EndpointSettings,
+    ExocortSettings,
+    NotesSettings,
+    ProcessorSettings,
+    ScreenSettings,
+)
 
 def load_config(path: Path) -> ExocortSettings:
     config_dir = path.expanduser().resolve().parent
@@ -62,7 +69,7 @@ def _parse_endpoint_settings(data: object) -> EndpointSettings:
     return EndpointSettings(
         model=str(mapping.get("model", "")),
         api_base=str(mapping.get("api_base", "")),
-        api_key_env=str(mapping.get("api_key_env", "")),
+        api_key_env=str(mapping.get("api_key_env", "test_key")),
     )
 
 
@@ -74,6 +81,22 @@ def _parse_processor_settings(data: object, config_dir: Path) -> ProcessorSettin
         output_dir=_resolve_path(mapping.get("output_dir", "captures/processed"), config_dir),
         ocr=_parse_endpoint_settings(mapping.get("ocr", {})),
         asr=_parse_endpoint_settings(mapping.get("asr", {})),
+        notes=_parse_notes_settings(mapping.get("notes", {}), config_dir),
+    )
+
+
+def _parse_notes_settings(data: object, config_dir: Path) -> NotesSettings:
+    mapping = _as_mapping(data, "processor.notes")
+    return NotesSettings(
+        enabled=bool(mapping.get("enabled", False)),
+        interval_seconds=int(mapping.get("interval_seconds", 60)),
+        max_input_tokens=int(mapping.get("max_input_tokens", 10_000)),
+        vault_dir=_resolve_path(mapping.get("vault_dir", "captures/vault"), config_dir),
+        state_dir=_resolve_path(mapping.get("state_dir", "captures/processed/notes"), config_dir),
+        model=str(mapping.get("model", "")),
+        api_base=str(mapping.get("api_base", "")),
+        api_key_env=str(mapping.get("api_key_env", "test_key")),
+        max_tool_iterations=int(mapping.get("max_tool_iterations", 8)),
     )
 
 

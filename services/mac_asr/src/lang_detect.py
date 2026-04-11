@@ -6,7 +6,7 @@ from faster_whisper import WhisperModel
 
 from common.utils.logs import get_logger
 
-from .config import load_settings
+from .config.settings import load_settings
 
 log = get_logger("mac_asr", "lang_detect")
 _detector_model: WhisperModel | None = None

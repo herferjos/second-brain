@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from common.models.chat import ChatCompletionRequest, ChatCompletionResponse
 
-from src.chat import chat_completions as create_chat_completion
+from src.chat.service import chat_completions as create_chat_completion
 
 router = APIRouter()
 

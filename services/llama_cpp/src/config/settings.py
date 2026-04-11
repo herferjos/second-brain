@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from common import EnvReader
+from common.utils.env import EnvReader
 
 from .models import LlamaCppSettings
 

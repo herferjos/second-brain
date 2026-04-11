@@ -4,8 +4,8 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
-from src.asr import ensure_speech_permission
-from src.config import load_settings
+from src.asr.permissions import ensure_speech_permission
+from src.config.settings import load_settings
 
 app = FastAPI(title="Mac ASR", version="0.1.0")
 app.include_router(api_router)

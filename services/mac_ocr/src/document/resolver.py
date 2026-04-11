@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from common.utils.logs import get_logger
 
-from .models import OcrDocumentPayload
+from common.models.ocr import OcrDocumentPayload
 
 log = get_logger("mac_ocr", "document")
 

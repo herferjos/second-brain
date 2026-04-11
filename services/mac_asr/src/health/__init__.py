@@ -1,4 +1,1 @@
-from .models import AsrHealthResponse
-
-__all__ = ["AsrHealthResponse"]
-
+from __future__ import annotations

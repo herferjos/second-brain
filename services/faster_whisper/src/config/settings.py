@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from common import EnvReader
+from common.utils.env import EnvReader
 
 from .models import FasterWhisperSettings
 

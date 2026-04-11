@@ -4,7 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
-from src.config import load_settings
+from src.config.settings import load_settings
 from src.transcription import startup
 
 app = FastAPI(title="Faster Whisper", version="0.1.0")

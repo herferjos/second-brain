@@ -9,12 +9,10 @@ from starlette.responses import Response
 
 from common.models.asr import TranscriptionRequest, TranscriptionResponse
 from common.utils.logs import get_logger
-from src.asr import (
-    ensure_speech_permission,
-    transcribe_audio_file,
-)
+from src.asr.permissions import ensure_speech_permission
 from src.asr.errors import _is_no_speech_error
-from src.config import load_settings
+from src.asr.transcription import transcribe_audio_file
+from src.config.settings import load_settings
 from src.transcription import resolve_request_locale, transcription_text
 
 log = get_logger("mac_asr", "api")

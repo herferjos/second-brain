@@ -27,7 +27,20 @@ class ScreenSettings:
 class EndpointSettings:
     model: str = ""
     api_base: str = ""
-    api_key_env: str = ""
+    api_key_env: str = "test_key"
+
+
+@dataclass(slots=True, frozen=True)
+class NotesSettings:
+    enabled: bool = False
+    interval_seconds: int = 60
+    max_input_tokens: int = 10_000
+    vault_dir: Path = field(default_factory=lambda: Path("captures") / "vault")
+    state_dir: Path = field(default_factory=lambda: Path("captures") / "processed" / "notes")
+    model: str = ""
+    api_base: str = ""
+    api_key_env: str = "test_key"
+    max_tool_iterations: int = 8
 
 
 @dataclass(slots=True, frozen=True)
@@ -37,6 +50,7 @@ class ProcessorSettings:
     output_dir: Path = field(default_factory=lambda: Path("captures") / "processed")
     ocr: EndpointSettings = field(default_factory=EndpointSettings)
     asr: EndpointSettings = field(default_factory=EndpointSettings)
+    notes: NotesSettings = field(default_factory=NotesSettings)
 
 
 @dataclass(slots=True, frozen=True)

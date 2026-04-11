@@ -4,8 +4,8 @@ from pathlib import Path
 
 from common.utils.logs import get_logger
 
-from .asr import resolve_locale
-from .config import load_settings
+from .asr.locale import resolve_locale
+from .config.settings import load_settings
 from .lang_detect import detect_language
 
 log = get_logger("mac_asr", "transcription")

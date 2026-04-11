@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import queue
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from watchdog.events import (
@@ -19,6 +21,7 @@ from exocort.logs import get_logger
 from litellm import ocr, transcription
 
 from .asr.service import asr_text
+from .notes import run_notes_loop
 from .ocr.service import ocr_text
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
@@ -29,6 +32,29 @@ log = get_logger("processor")
 
 
 def processing_loop(config: ProcessorSettings) -> None:
+    threads = [
+        threading.Thread(
+            target=_run_file_processor_loop,
+            args=(config,),
+            name="file-processor-loop",
+        )
+    ]
+    if config.notes.enabled:
+        threads.append(
+            threading.Thread(
+                target=run_notes_loop,
+                args=(config,),
+                name="notes-processor-loop",
+            )
+        )
+
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+
+def _run_file_processor_loop(config: ProcessorSettings) -> None:
     config.watch_dir.mkdir(parents=True, exist_ok=True)
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -112,7 +138,7 @@ def _process_file_if_supported(config: ProcessorSettings, file_path: Path) -> bo
         return False
 
     output_path.write_text(
-        json.dumps({"text": text}, ensure_ascii=False, indent=2),
+        json.dumps(_build_output_payload(config, file_path, text), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     log.info("saved %s -> %s", file_path, output_path)
@@ -143,6 +169,24 @@ def _process_file(file_path: Path, endpoint: EndpointSettings) -> str:
         return _process_ocr_file(file_path, endpoint, api_key)
 
     return _process_asr_file(file_path, endpoint, api_key)
+
+
+def _build_output_payload(config: ProcessorSettings, file_path: Path, text: str) -> dict[str, object]:
+    source_kind = "ocr" if file_path.suffix.lower() in IMAGE_EXTENSIONS else "asr"
+    relative_path = file_path.relative_to(config.watch_dir)
+    return {
+        "schema_version": 2,
+        "source_kind": source_kind,
+        "source_file": str(file_path.resolve()),
+        "source_relpath": str(relative_path),
+        "captured_at": _captured_at_from_path(file_path).isoformat().replace("+00:00", "Z"),
+        "text": text,
+    }
+
+
+def _captured_at_from_path(file_path: Path) -> datetime:
+    timestamp = file_path.stem
+    return datetime.strptime(timestamp, "%Y%m%dT%H%M%S%f").replace(tzinfo=timezone.utc)
 
 
 def _process_ocr_file(file_path: Path, endpoint: EndpointSettings, api_key: str) -> str:

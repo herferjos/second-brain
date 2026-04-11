@@ -4,6 +4,8 @@ import argparse
 import threading
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from exocort.config import ExocortSettings, load_config
 from exocort.logs import configure_logging, get_logger
 
@@ -72,6 +74,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    load_dotenv()
     configure_logging()
     args = parse_args()
     config = load_config(args.config)

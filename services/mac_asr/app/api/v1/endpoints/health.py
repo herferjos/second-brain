@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from src.asr import ensure_speech_permission
-from src.config import load_settings
+from src.asr.permissions import ensure_speech_permission
+from src.config.settings import load_settings
 from src.health.models import AsrHealthResponse
 
 router = APIRouter()

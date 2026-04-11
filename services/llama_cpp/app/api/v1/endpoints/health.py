@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from common.models.health import HealthResponse
 
-from src.chat import health as health_status
+from src.chat.service import health as health_status
 
 router = APIRouter()
 

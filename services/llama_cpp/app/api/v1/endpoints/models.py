@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from common.models.chat import ChatModelListResponse
 
-from src.chat import list_models as list_available_models
+from src.chat.service import list_models as list_available_models
 
 router = APIRouter()
 

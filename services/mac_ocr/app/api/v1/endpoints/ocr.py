@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException
 
 from common.models.ocr import OcrRequestPayload, OcrResponse
 from common.utils.logs import get_logger
-from src.document import resolve_document_path
-from src.ocr import ocr_image_path
+from src.document.resolver import resolve_document_path
+from src.ocr.service import ocr_image_path
 
 router = APIRouter()
 log = get_logger("mac_ocr", "api")

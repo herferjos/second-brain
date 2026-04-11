@@ -39,3 +39,11 @@ The current naming pattern is useful and should stay recognizable:
 - `models.py` for local shapes
 - `main.py` for process bootstrap
 - `api.py` for router composition
+
+## Reexports
+
+Avoid `__init__.py` reexports and passthrough modules unless they add real value.
+
+- If a symbol is used from one concrete module, import it from that module directly.
+- Keep a package `__init__.py` empty unless it needs package metadata or an actual package-level API.
+- Only reexport when a package boundary is intentionally part of the public surface.

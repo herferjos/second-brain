@@ -8,7 +8,7 @@ from faster_whisper import WhisperModel
 from common.models.asr import TranscriptionResponse
 from common.models.health import HealthResponse
 from common.utils.logs import get_logger
-from src.config import load_settings
+from src.config.settings import load_settings
 
 log = get_logger("faster_whisper", "transcription")
 _model: WhisperModel | None = None

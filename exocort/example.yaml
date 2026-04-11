@@ -27,5 +27,15 @@ processor:
     api_key_env: LITELLM_API_KEY
   asr:
     model: openai/whisper
-    api_base: http://127.0.0.1:9000/v1
+    api_base: http://127.0.0.1:9092/v1
     api_key_env: LITELLM_API_KEY
+  notes:
+    enabled: true
+    interval_seconds: 60
+    max_input_tokens: 10000
+    vault_dir: ../tmp/vault
+    state_dir: ../tmp/processed/notes
+    model: openai/gpt-4.1-mini
+    api_base: http://127.0.0.1:4000/v1
+    api_key_env: LITELLM_API_KEY
+    max_tool_iterations: 8

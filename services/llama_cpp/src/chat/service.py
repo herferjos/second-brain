@@ -13,7 +13,8 @@ from common.models.chat import ChatCompletionRequest, ChatCompletionResponse, Ch
 from common.models.health import HealthResponse
 from common.utils.logs import get_logger
 
-from ..config import LlamaCppSettings, load_settings
+from ..config.models import LlamaCppSettings
+from ..config.settings import load_settings
 
 log = get_logger("llama_cpp")
 _settings: LlamaCppSettings | None = None

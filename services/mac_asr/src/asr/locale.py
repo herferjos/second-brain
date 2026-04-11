@@ -3,7 +3,7 @@ from __future__ import annotations
 import Foundation
 import Speech
 
-from ..config import load_settings
+from ..config.settings import load_settings
 
 
 def _supported_locale_ids() -> list[str]:

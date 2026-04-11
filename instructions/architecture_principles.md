@@ -31,6 +31,14 @@ Public request and response shapes belong in `services/common` when they are sha
 
 Use Pydantic models at the HTTP boundary. Use simpler internal types when the data is already validated.
 
+## Package Boundaries
+
+Do not use package `__init__.py` files as silent passthrough layers.
+
+- Prefer imports from the module that defines the object.
+- Keep reexports only when they clarify a deliberate public API.
+- Remove reexports or wrapper modules that only forward symbols without changing them.
+
 ## Filesystem Boundary
 
 The project uses files as a stable handoff mechanism between capture, watch, and processing.

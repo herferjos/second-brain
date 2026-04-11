@@ -91,10 +91,6 @@ def _source_kind(payload: dict[str, object], artifact_id: str) -> str:
     value = payload.get("source_kind")
     if value in {"ocr", "asr"}:
         return str(value)
-    if artifact_id.endswith((".png.json", ".jpg.json", ".jpeg.json", ".webp.json", ".bmp.json", ".gif.json", ".tif.json", ".tiff.json")):
-        return "ocr"
-    if artifact_id.endswith((".wav.json", ".mp3.json", ".m4a.json", ".mp4.json", ".mpeg.json", ".mpga.json", ".webm.json", ".ogg.json")):
-        return "asr"
     raise ValueError("cannot infer source_kind from legacy artifact")
 
 
@@ -105,8 +101,7 @@ def _captured_at(payload: dict[str, object], artifact_id: str) -> datetime:
         return datetime.fromisoformat(normalized)
 
     base_name = Path(artifact_id).name
-    parts = base_name.split(".")
-    if len(parts) < 3:
-        raise ValueError("cannot infer captured_at from legacy artifact")
-    timestamp = parts[0]
+    if base_name.endswith(".json"):
+        base_name = base_name[:-5]
+    timestamp = Path(base_name).stem
     return datetime.strptime(timestamp, "%Y%m%dT%H%M%S%f").replace(tzinfo=timezone.utc)

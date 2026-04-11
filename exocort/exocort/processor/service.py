@@ -132,6 +132,9 @@ def _process_file_if_supported(config: ProcessorSettings, file_path: Path) -> bo
     try:
         text = _process_file(file_path, endpoint)
     except Exception as exc:
+        if _is_empty_text_error(exc):
+            log.info("skipped %s because OCR/ASR returned empty text", file_path)
+            return False
         error_path = output_path.with_suffix(".error.txt")
         error_path.write_text(str(exc), encoding="utf-8")
         log.error("failed %s -> %s: %s", file_path, error_path, exc)
@@ -159,7 +162,7 @@ def _get_endpoint_config(
 
 def _build_output_path(config: ProcessorSettings, file_path: Path) -> Path:
     relative_path = file_path.relative_to(config.watch_dir)
-    return config.output_dir / relative_path.parent / f"{relative_path.name}.json"
+    return config.output_dir / relative_path.parent / f"{relative_path.stem}.json"
 
 
 def _process_file(file_path: Path, endpoint: EndpointSettings) -> str:
@@ -181,6 +184,14 @@ def _build_output_payload(config: ProcessorSettings, file_path: Path, text: str)
         "source_relpath": str(relative_path),
         "captured_at": _captured_at_from_path(file_path).isoformat().replace("+00:00", "Z"),
         "text": text,
+    }
+
+
+def _is_empty_text_error(exc: Exception) -> bool:
+    return str(exc) in {
+        "ASR response text is empty.",
+        "OCR page markdown is empty.",
+        "OCR response must include a non-empty `pages` list.",
     }
 
 

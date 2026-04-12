@@ -80,27 +80,27 @@ def build_tool_handlers(vault_dir: Path) -> dict[str, ToolHandler]:
         ),
         "read_note": lambda args: ToolCallResult(
             tool_name="read_note",
-            summary=vault.read_note(vault_dir, str(args["path"])),
-            note_path=str(args["path"]),
+            summary=vault.read_note(vault_dir, _normalize_note_path(args["path"])),
+            note_path=_normalize_note_path(args["path"]),
         ),
         "create_note": lambda args: _write_result(
             "create_note",
-            vault.create_note(vault_dir, str(args["path"]), str(args["content"])),
+            vault.create_note(vault_dir, _normalize_note_path(args["path"]), str(args["content"])),
             vault_dir,
         ),
         "replace_note": lambda args: _write_result(
             "replace_note",
-            vault.replace_note(vault_dir, str(args["path"]), str(args["content"])),
+            vault.replace_note(vault_dir, _normalize_note_path(args["path"]), str(args["content"])),
             vault_dir,
         ),
         "append_note": lambda args: _write_result(
             "append_note",
-            vault.append_note(vault_dir, str(args["path"]), str(args["content"])),
+            vault.append_note(vault_dir, _normalize_note_path(args["path"]), str(args["content"])),
             vault_dir,
         ),
         "delete_note": lambda args: _write_result(
             "delete_note",
-            vault.delete_note(vault_dir, str(args["path"])),
+            vault.delete_note(vault_dir, _normalize_note_path(args["path"])),
             vault_dir,
         ),
     }
@@ -127,6 +127,15 @@ def _function_tool(name: str, description: str, parameters: dict[str, Any]) -> d
             "parameters": parameters,
         },
     }
+
+
+def _normalize_note_path(raw_path: object) -> str:
+    path = str(raw_path).strip()
+    if not path:
+        raise ValueError("note path must not be empty")
+    if Path(path).suffix:
+        return path
+    return f"{path}.md"
 
 
 def _write_result(tool_name: str, note_path: Path, vault_dir: Path) -> ToolCallResult:

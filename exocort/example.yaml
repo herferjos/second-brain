@@ -1,21 +1,24 @@
-audio:
-  enabled: false
-  chunk_seconds: 30
-  sample_rate: 16000
-  channels: 1
-  output_dir: ../tmp/raw/audio
-  vad:
-    enabled: true
-    aggressiveness: 3
-    frame_ms: 20
-    pre_roll_seconds: 1.0
-    min_speech_seconds: 0.8
-    min_silence_seconds: 1.5
+capturer:
+  audio:
+    enabled: false
+    chunk_seconds: 30
+    sample_rate: 16000
+    channels: 1
+    output_dir: ../tmp/raw/audio
+    expired_in: 0
+    vad:
+      enabled: true
+      aggressiveness: 3
+      frame_ms: 20
+      pre_roll_seconds: 1.0
+      min_speech_seconds: 0.8
+      min_silence_seconds: 1.5
 
-screen:
-  enabled: false
-  interval_seconds: 5
-  output_dir: ../tmp/raw/screen
+  screen:
+    enabled: false
+    interval_seconds: 5
+    output_dir: ../tmp/raw/screen
+    expired_in: 0
 
 processor:
   enabled: true
@@ -25,18 +28,21 @@ processor:
     model: mistral/mistral-ocr-latest
     api_base: http://127.0.0.1:9093/v1
     api_key_env: LITELLM_API_KEY
+    expired_in: 0
   asr:
     model: openai/whisper
     api_base: http://127.0.0.1:9092/v1
     api_key_env: LITELLM_API_KEY
+    expired_in: 0
   notes:
     enabled: true
     interval_seconds: 60
     max_input_tokens: 10000
-    max_concurrent_batch: 4
+    max_concurrent_batch: 1
     vault_dir: ../vault
     state_dir: ../tmp/processed/notes
     model: openai/gpt-5-mini
     api_base: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
+    temperature: 0.0
     max_tool_iterations: 20

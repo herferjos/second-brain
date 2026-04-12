@@ -10,6 +10,7 @@ from exocort.capturer.audio.vad import AudioVADConfig
 
 from .models import (
     AudioSettings,
+    CapturerSettings,
     EndpointSettings,
     ExocortSettings,
     NotesSettings,
@@ -24,9 +25,12 @@ def load_config(path: Path) -> ExocortSettings:
         data = {}
     if not isinstance(data, dict):
         raise ValueError("Config file must contain a YAML mapping at the top level.")
+    capturer = _as_mapping(data.get("capturer", {}), "capturer")
     return ExocortSettings(
-        audio=_parse_audio_settings(data.get("audio", {}), config_dir),
-        screen=_parse_screen_settings(data.get("screen", {}), config_dir),
+        capturer=CapturerSettings(
+            audio=_parse_audio_settings(capturer.get("audio", data.get("audio", {})), config_dir),
+            screen=_parse_screen_settings(capturer.get("screen", data.get("screen", {})), config_dir),
+        ),
         processor=_parse_processor_settings(data.get("processor", {}), config_dir),
     )
 
@@ -39,6 +43,7 @@ def _parse_audio_settings(data: object, config_dir: Path) -> AudioSettings:
         sample_rate=int(mapping.get("sample_rate", 16_000)),
         channels=int(mapping.get("channels", 1)),
         output_dir=_resolve_path(mapping.get("output_dir", "captures/audio"), config_dir),
+        expired_in=_parse_expired_in(mapping.get("expired_in", 0), "capturer.audio.expired_in"),
         vad=_parse_vad_settings(mapping.get("vad", {})),
     )
 
@@ -61,15 +66,17 @@ def _parse_screen_settings(data: object, config_dir: Path) -> ScreenSettings:
         enabled=bool(mapping.get("enabled", False)),
         interval_seconds=int(mapping.get("interval_seconds", 5)),
         output_dir=_resolve_path(mapping.get("output_dir", "captures/screen"), config_dir),
+        expired_in=_parse_expired_in(mapping.get("expired_in", 0), "capturer.screen.expired_in"),
     )
 
 
-def _parse_endpoint_settings(data: object) -> EndpointSettings:
+def _parse_endpoint_settings(data: object, label: str) -> EndpointSettings:
     mapping = _as_mapping(data, "endpoint")
     return EndpointSettings(
         model=str(mapping.get("model", "")),
         api_base=str(mapping.get("api_base", "")),
         api_key_env=str(mapping.get("api_key_env", "test_key")),
+        expired_in=_parse_expired_in(mapping.get("expired_in", 0), label),
     )
 
 
@@ -79,8 +86,8 @@ def _parse_processor_settings(data: object, config_dir: Path) -> ProcessorSettin
         enabled=bool(mapping.get("enabled", False)),
         watch_dir=_resolve_path(mapping.get("watch_dir", "captures"), config_dir),
         output_dir=_resolve_path(mapping.get("output_dir", "captures/processed"), config_dir),
-        ocr=_parse_endpoint_settings(mapping.get("ocr", {})),
-        asr=_parse_endpoint_settings(mapping.get("asr", {})),
+        ocr=_parse_endpoint_settings(mapping.get("ocr", {}), "processor.ocr.expired_in"),
+        asr=_parse_endpoint_settings(mapping.get("asr", {}), "processor.asr.expired_in"),
         notes=_parse_notes_settings(mapping.get("notes", {}), config_dir),
     )
 
@@ -98,6 +105,7 @@ def _parse_notes_settings(data: object, config_dir: Path) -> NotesSettings:
         model=str(mapping.get("model", "")),
         api_base=str(mapping.get("api_base", "")),
         api_key_env=str(mapping.get("api_key_env", "test_key")),
+        temperature=float(mapping.get("temperature", 0.0)),
         max_tool_iterations=int(mapping.get("max_tool_iterations", 8)),
     )
 
@@ -113,3 +121,10 @@ def _resolve_path(value: object, config_dir: Path) -> Path:
     if path.is_absolute():
         return path
     return (config_dir / path).resolve()
+
+
+def _parse_expired_in(value: object, label: str) -> int:
+    seconds = int(value)
+    if seconds < 0:
+        raise ValueError(f"{label} must be greater than or equal to 0.")
+    return seconds

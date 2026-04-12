@@ -15,25 +15,26 @@ log = get_logger("runner")
 
 def run(config: ExocortSettings) -> None:
     services: list[threading.Thread] = []
+    capturer = config.capturer
 
-    if config.audio.enabled:
+    if capturer.audio.enabled:
         from exocort.capturer.audio.capture import audio_loop
 
         services.append(
             threading.Thread(
                 target=audio_loop,
-                args=(config.audio,),
+                args=(capturer.audio,),
                 name="audio-capturer",
             )
         )
 
-    if config.screen.enabled:
+    if capturer.screen.enabled:
         from exocort.capturer.screen.capture import screenshot_loop
 
         services.append(
             threading.Thread(
                 target=screenshot_loop,
-                args=(config.screen,),
+                args=(capturer.screen,),
                 name="screen-capturer",
             )
         )
@@ -44,7 +45,7 @@ def run(config: ExocortSettings) -> None:
         services.append(
             threading.Thread(
                 target=processing_loop,
-                args=(config.processor,),
+                args=(config,),
                 name="file-processor",
             )
         )

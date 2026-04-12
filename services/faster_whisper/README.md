@@ -60,9 +60,11 @@ uv run faster-whisper-service
 
 Exocort example:
 
-```toml
-[processor.asr]
-model = "faster-whisper-local"
-api_base = "http://127.0.0.1:9000/v1"
-api_key_env = ""
+```yaml
+processor:
+  asr:
+    model: faster-whisper-local
+    api_base: http://127.0.0.1:9000/v1
+    api_key_env: ""
+    expired_in: 0
 ```

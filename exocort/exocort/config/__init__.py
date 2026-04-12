@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 from .loader import load_config
-from .models import AudioSettings, EndpointSettings, ExocortSettings, NotesSettings, ProcessorSettings, ScreenSettings
+from .models import (
+    AudioSettings,
+    CapturerSettings,
+    EndpointSettings,
+    ExocortSettings,
+    NotesSettings,
+    ProcessorSettings,
+    ScreenSettings,
+)
 
 __all__ = [
     "AudioSettings",
+    "CapturerSettings",
     "EndpointSettings",
     "ExocortSettings",
     "NotesSettings",

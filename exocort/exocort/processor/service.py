@@ -16,13 +16,14 @@ from watchdog.events import (
 )
 from watchdog.observers import Observer
 
-from exocort.config import EndpointSettings, ProcessorSettings
+from exocort.config import EndpointSettings, ExocortSettings, ProcessorSettings
 from exocort.logs import get_logger
 from litellm import ocr, transcription
 
 from .asr.service import asr_text
 from .notes import run_notes_loop
 from .ocr.service import ocr_text
+from .retention import schedule_file_deletion
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".mp4", ".mpeg", ".mpga", ".webm", ".ogg"}
@@ -31,7 +32,8 @@ QUEUE_TIMEOUT_SECONDS = 0.5
 log = get_logger("processor")
 
 
-def processing_loop(config: ProcessorSettings) -> None:
+def processing_loop(config: ExocortSettings) -> None:
+    processor = config.processor
     threads = [
         threading.Thread(
             target=_run_file_processor_loop,
@@ -39,11 +41,11 @@ def processing_loop(config: ProcessorSettings) -> None:
             name="file-processor-loop",
         )
     ]
-    if config.notes.enabled:
+    if processor.notes.enabled:
         threads.append(
             threading.Thread(
                 target=run_notes_loop,
-                args=(config,),
+                args=(processor,),
                 name="notes-processor-loop",
             )
         )
@@ -54,14 +56,15 @@ def processing_loop(config: ProcessorSettings) -> None:
         thread.join()
 
 
-def _run_file_processor_loop(config: ProcessorSettings) -> None:
-    config.watch_dir.mkdir(parents=True, exist_ok=True)
-    config.output_dir.mkdir(parents=True, exist_ok=True)
+def _run_file_processor_loop(config: ExocortSettings) -> None:
+    processor = config.processor
+    processor.watch_dir.mkdir(parents=True, exist_ok=True)
+    processor.output_dir.mkdir(parents=True, exist_ok=True)
 
     log.info(
         "watching %s -> %s with filesystem events",
-        config.watch_dir,
-        config.output_dir,
+        processor.watch_dir,
+        processor.output_dir,
     )
 
     processed = process_existing_files(config)
@@ -71,7 +74,7 @@ def _run_file_processor_loop(config: ProcessorSettings) -> None:
     event_queue: queue.Queue[Path] = queue.Queue()
     event_handler = _QueuedPathHandler(event_queue)
     observer = Observer()
-    observer.schedule(event_handler, str(config.watch_dir), recursive=True)
+    observer.schedule(event_handler, str(processor.watch_dir), recursive=True)
     observer.start()
 
     try:
@@ -89,16 +92,16 @@ def _run_file_processor_loop(config: ProcessorSettings) -> None:
         observer.join()
 
 
-def process_existing_files(config: ProcessorSettings) -> int:
+def process_existing_files(config: ExocortSettings) -> int:
     processed = 0
-    for file_path in _iter_supported_files(config.watch_dir):
+    for file_path in _iter_supported_files(config.processor.watch_dir):
         if _process_file_if_supported(config, file_path):
             processed += 1
     return processed
 
 
 def _drain_queue(
-    config: ProcessorSettings,
+    config: ExocortSettings,
     event_queue: queue.Queue[Path],
     event_handler: "_QueuedPathHandler",
 ) -> None:
@@ -119,12 +122,13 @@ def _iter_supported_files(root: Path) -> list[Path]:
     )
 
 
-def _process_file_if_supported(config: ProcessorSettings, file_path: Path) -> bool:
-    endpoint = _get_endpoint_config(config, file_path)
+def _process_file_if_supported(config: ExocortSettings, file_path: Path) -> bool:
+    processor = config.processor
+    endpoint = _get_endpoint_config(processor, file_path)
     if endpoint is None:
         return False
 
-    output_path = _build_output_path(config, file_path)
+    output_path = _build_output_path(processor, file_path)
     if output_path.exists():
         return False
 
@@ -142,10 +146,15 @@ def _process_file_if_supported(config: ProcessorSettings, file_path: Path) -> bo
             return False
 
     output_path.write_text(
-        json.dumps(_build_output_payload(config, file_path, text), ensure_ascii=False, indent=2),
+        json.dumps(_build_output_payload(processor, file_path, text), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     log.info("saved %s -> %s", file_path, output_path)
+    schedule_file_deletion(
+        file_path,
+        expired_in=_raw_expired_in(config, file_path),
+        reason="raw capture consumed by processor",
+    )
     return True
 
 
@@ -186,6 +195,15 @@ def _build_output_payload(config: ProcessorSettings, file_path: Path, text: str)
         "captured_at": _captured_at_from_path(file_path).isoformat().replace("+00:00", "Z"),
         "text": text,
     }
+
+
+def _raw_expired_in(config: ExocortSettings, file_path: Path) -> int:
+    suffix = file_path.suffix.lower()
+    if suffix in IMAGE_EXTENSIONS:
+        return config.capturer.screen.expired_in
+    if suffix in AUDIO_EXTENSIONS:
+        return config.capturer.audio.expired_in
+    return 0
 
 
 def _is_empty_text_error(exc: Exception) -> bool:

@@ -11,6 +11,7 @@ from .agent import run_notes_agent, touched_note_paths
 from .batching import build_batch_candidates, discover_unprocessed_artifacts
 from .models import BatchCandidate, BatchRunResult
 from .state import ensure_state_dirs, write_batch_error, write_batch_manifest
+from ..retention import schedule_file_deletion
 
 log = get_logger("processor", "notes")
 
@@ -118,4 +119,15 @@ def _run_notes_batch(config: ProcessorSettings, candidate: BatchCandidate) -> Ba
         candidate.input_tokens,
         len(note_paths),
     )
+    _schedule_artifact_cleanup(config, candidate)
     return result
+
+
+def _schedule_artifact_cleanup(config: ProcessorSettings, candidate: BatchCandidate) -> None:
+    for artifact in candidate.artifacts:
+        expired_in = config.asr.expired_in if artifact.source_kind == "asr" else config.ocr.expired_in
+        schedule_file_deletion(
+            artifact.json_path,
+            expired_in=expired_in,
+            reason=f"{artifact.source_kind} artifact consumed by processor.notes",
+        )

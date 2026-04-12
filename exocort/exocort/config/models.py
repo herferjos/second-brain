@@ -13,6 +13,7 @@ class AudioSettings:
     sample_rate: int = 16_000
     channels: int = 1
     output_dir: Path = field(default_factory=lambda: Path("captures") / "audio")
+    expired_in: int = 0
     vad: AudioVADConfig = field(default_factory=AudioVADConfig)
 
 
@@ -21,6 +22,13 @@ class ScreenSettings:
     enabled: bool = False
     interval_seconds: int = 5
     output_dir: Path = field(default_factory=lambda: Path("captures") / "screen")
+    expired_in: int = 0
+
+
+@dataclass(slots=True, frozen=True)
+class CapturerSettings:
+    audio: AudioSettings = field(default_factory=AudioSettings)
+    screen: ScreenSettings = field(default_factory=ScreenSettings)
 
 
 @dataclass(slots=True, frozen=True)
@@ -28,6 +36,7 @@ class EndpointSettings:
     model: str = ""
     api_base: str = ""
     api_key_env: str = "test_key"
+    expired_in: int = 0
 
 
 @dataclass(slots=True, frozen=True)
@@ -41,6 +50,7 @@ class NotesSettings:
     model: str = ""
     api_base: str = ""
     api_key_env: str = "test_key"
+    temperature: float = 0.0
     max_tool_iterations: int = 8
 
 
@@ -56,6 +66,5 @@ class ProcessorSettings:
 
 @dataclass(slots=True, frozen=True)
 class ExocortSettings:
-    audio: AudioSettings = field(default_factory=AudioSettings)
-    screen: ScreenSettings = field(default_factory=ScreenSettings)
+    capturer: CapturerSettings = field(default_factory=CapturerSettings)
     processor: ProcessorSettings = field(default_factory=ProcessorSettings)

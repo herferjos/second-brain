@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import uuid
-from pathlib import Path
 from typing import Any
 
+import litellm
 from litellm import completion
 
 from exocort.config import NotesSettings
@@ -57,10 +58,16 @@ When a note needs to be created, use create_note. Avoid append_note unless a ver
 Choose stable, lowercase snake_case filenames that describe the subject.
 Reply briefly when done, summarizing what you've updated."""
 
+INITIAL_TOOL_CALL_ID = "bootstrap_list_notes"
+WRITE_TOOL_NAMES = {"create_note", "replace_note", "append_note"}
+
+litellm.drop_params = True
+
 
 def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResult:
     api_key = os.getenv(notes.api_key_env, "test_key") if notes.api_key_env else "test_key"
     handlers = build_tool_handlers(notes.vault_dir)
+    initial_list_result = handlers["list_notes"]({})
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {
@@ -93,8 +100,29 @@ def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResu
                 f"Capture batch:\n{batch.input_text}\n"
             ),
         },
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": INITIAL_TOOL_CALL_ID,
+                    "type": "function",
+                    "function": {
+                        "name": "list_notes",
+                        "arguments": json.dumps({}),
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": INITIAL_TOOL_CALL_ID,
+            "name": "list_notes",
+            "content": initial_list_result.summary,
+        },
     ]
     results: list[ToolCallResult] = []
+    had_write_tool = False
 
     for _ in range(notes.max_tool_iterations):
         response = completion(
@@ -104,6 +132,7 @@ def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResu
             tool_choice="auto",
             api_base=notes.api_base,
             api_key=api_key,
+            temperature=notes.temperature,
         )
         message = response.choices[0].message
         assistant_message = _message_to_dict(message)
@@ -111,6 +140,18 @@ def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResu
 
         tool_calls = assistant_message.get("tool_calls") or []
         if not tool_calls:
+            if not had_write_tool:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "You have not updated the vault yet. "
+                            "Before finishing, you must call at least one write tool: "
+                            "create_note, replace_note, or append_note."
+                        ),
+                    }
+                )
+                continue
             content = assistant_message.get("content")
             return BatchRunResult(
                 assistant_message=str(content or "").strip(),
@@ -120,16 +161,38 @@ def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResu
         for tool_call in tool_calls:
             function_call = tool_call.get("function") or {}
             tool_name = str(function_call.get("name", "")).strip()
+            tool_call_id = str(tool_call.get("id") or uuid.uuid4().hex)
             if tool_name not in handlers:
-                raise ValueError(f"unsupported tool requested: {tool_name}")
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "name": tool_name,
+                        "content": f"error: unsupported tool requested: {tool_name}",
+                    }
+                )
+                continue
             raw_arguments = function_call.get("arguments", "{}")
-            parsed_arguments = parse_tool_arguments(raw_arguments)
-            result = handlers[tool_name](parsed_arguments)
+            try:
+                parsed_arguments = parse_tool_arguments(raw_arguments)
+                result = handlers[tool_name](parsed_arguments)
+            except Exception as exc:
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "name": tool_name,
+                        "content": f"error: {exc}",
+                    }
+                )
+                continue
             results.append(result)
+            if tool_name in WRITE_TOOL_NAMES:
+                had_write_tool = True
             messages.append(
                 {
                     "role": "tool",
-                    "tool_call_id": str(tool_call.get("id") or uuid.uuid4().hex),
+                    "tool_call_id": tool_call_id,
                     "name": tool_name,
                     "content": result.summary,
                 }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from src.config.settings import load_settings
@@ -8,28 +10,29 @@ from src.config.settings import load_settings
 pytestmark = [pytest.mark.service, pytest.mark.unit]
 
 
-def test_load_settings_reads_environment(
+def test_load_settings_reads_yaml() -> None:
+    load_settings.cache_clear()
+
+    settings = load_settings()
+    assert settings.model_path == "medium"
+    assert settings.beam_size == 5
+    assert settings.language is None
+
+
+def test_load_settings_defaults_when_config_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     load_settings.cache_clear()
-    monkeypatch.setenv("FASTER_WHISPER_MODEL_PATH", "small")
-    monkeypatch.setenv("FASTER_WHISPER_DEVICE", "cpu")
-    monkeypatch.setenv("FASTER_WHISPER_COMPUTE_TYPE", "int8")
-    monkeypatch.setenv("FASTER_WHISPER_BEAM_SIZE", "7")
-    monkeypatch.setenv("FASTER_WHISPER_LANGUAGE", "en")
-
-    settings = load_settings()
-    assert settings.model_path == "small"
-    assert settings.beam_size == 7
-    assert settings.language == "en"
-
-
-def test_load_settings_maps_auto_language_to_none(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    load_settings.cache_clear()
-    monkeypatch.setenv("FASTER_WHISPER_LANGUAGE", "auto")
+    original_exists = Path.exists
+    config_path = Path(__file__).resolve().parents[1] / "config.yaml"
+    monkeypatch.setattr(
+        Path,
+        "exists",
+        lambda self: False if self == config_path else original_exists(self),
+    )
 
     settings = load_settings()
 
+    assert settings.model_path == "medium"
+    assert settings.device == "cpu"
     assert settings.language is None

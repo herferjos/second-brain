@@ -1,0 +1,18 @@
+# Mac ASR — transcription API
+
+host: 127.0.0.1
+port: 9092
+reload: true
+
+# Use "auto" to enable language detection by default, or set a fixed locale
+# like "es-ES" / "en-US" to force transcription in that locale.
+locale: auto
+default_locale: es
+transcription_timeout_s: 30
+prompt_permission: true
+log_level: info
+detect_model: tiny
+detect_device: cpu
+detect_compute_type: int8
+detect_discard_min_prob: 0.5
+detect_default_min_prob: 0.7

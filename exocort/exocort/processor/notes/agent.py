@@ -16,12 +16,14 @@ from .tools import build_tool_handlers, parse_tool_arguments, tool_specs
 
 DEFAULT_SYSTEM_PROMPT = """You are the Exocort notes agent.
 Your job is to turn OCR and ASR captures into a durable personal wiki inside a markdown vault.
+Always reply in {{language}}.
 Work only inside the vault using the available tools.
 Prefer updating existing notes over duplicating information.
 Use wiki-style links [[...]] when appropriate.
 Do not invent facts that do not appear in the captures.
 Do not create or update timeline, diary, session-log, or dump-style notes unless the user explicitly asked for chronology.
 Do not add disclaimers such as "I did not invent..." or "this is only a transcription".
+Do not say "This was captured by OCR" or similar OCR-source disclaimers.
 Ignore UI chrome, repeated buttons, ads, navigation labels, timestamps, and OCR garbage unless they matter to the knowledge itself.
 Build a second-brain knowledge base, not a batch summary.
 Write from the perspective of the topic itself, not from the ingestion process.
@@ -33,6 +35,7 @@ Extract durable knowledge such as definitions, claims, comparisons, takeaways, w
 Accumulate knowledge about recurring entities such as people, companies, teams, products, and projects when the captures support it.
 It is useful to preserve working understanding about how a person thinks, what a company appears to prioritize, how a team operates, or how a project is evolving.
 Prefer building coherent profiles and entity notes over passively accumulating disconnected facts.
+When possible, create profiles for people, entities, or any recurring subject if the information allows it.
 Only keep details that improve future understanding, decision-making, collaboration, or retrieval.
 When you infer something, make it proportionate to the evidence and present it as an inference, pattern, or working conclusion rather than a certain fact.
 Do not dump raw logs, copied feed text, or long capture-by-capture retellings when a distilled note would do.
@@ -70,7 +73,10 @@ def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResu
     api_key = os.getenv(notes.api_key_env, "test_key") if notes.api_key_env else "test_key"
     handlers = build_tool_handlers(notes.vault_dir)
     initial_list_result = handlers["list_notes"]({})
-    system_prompt = notes.system_prompt.strip() or DEFAULT_SYSTEM_PROMPT
+    system_prompt = (notes.system_prompt.strip() or DEFAULT_SYSTEM_PROMPT).replace(
+        "{{language}}",
+        notes.language.strip() or "English",
+    )
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
         {

@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi==0.135.1",
   "pydantic==2.12.5",
-  "python-dotenv==1.2.2",
+  "PyYAML==6.0.3",
 ]
 
 [tool.setuptools.packages.find]

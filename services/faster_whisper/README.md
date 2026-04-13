@@ -39,14 +39,11 @@ This is the format Exocort expects when calling transcription through LiteLLM-co
 Local configuration
 -------------------
 
-Service runtime settings are controlled through environment variables loaded from `.env`.
-Copy `.env.example` to `.env` and adjust if needed.
-Main keys: `FASTER_WHISPER_MODEL_PATH`, `FASTER_WHISPER_DEVICE`,
-`FASTER_WHISPER_COMPUTE_TYPE`, `FASTER_WHISPER_BEAM_SIZE`,
-`FASTER_WHISPER_LANGUAGE`,
-`FASTER_WHISPER_HOST`, `FASTER_WHISPER_PORT`, `FASTER_WHISPER_RELOAD`,
-`FASTER_WHISPER_LOG_LEVEL`.
-Set `FASTER_WHISPER_LANGUAGE=auto` or leave it unset to let `faster-whisper` auto-detect the language.
+Service runtime settings are loaded from `config.yaml`.
+Use `example.yaml` as the base template.
+Main keys: `model_path`, `device`, `compute_type`, `beam_size`, `language`,
+`host`, `port`, `reload`, `log_level`.
+Set `language: auto` or leave it empty to let `faster-whisper` auto-detect the language.
 
 Running the service
 -------------------

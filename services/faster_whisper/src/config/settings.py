@@ -1,27 +1,28 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
-from common.utils.env import EnvReader
+from common.utils.yaml import load_yaml_config
 
 from .models import FasterWhisperSettings
 
 
 @lru_cache(maxsize=1)
 def load_settings() -> FasterWhisperSettings:
-    env = EnvReader()
-    language = env.str("FASTER_WHISPER_LANGUAGE", "") or None
+    config = load_yaml_config(Path(__file__).resolve().parents[2] / "config.yaml")
+    language = str(config.get("language", "")).strip() or None
     if language and language.lower() == "auto":
         language = None
 
     return FasterWhisperSettings(
-        host=env.str("FASTER_WHISPER_HOST", "127.0.0.1"),
-        port=env.int("FASTER_WHISPER_PORT", 9000),
-        reload=env.bool("FASTER_WHISPER_RELOAD", True),
-        log_level=env.str("FASTER_WHISPER_LOG_LEVEL", "info").lower(),
-        model_path=env.str("FASTER_WHISPER_MODEL_PATH", "medium"),
-        device=env.str("FASTER_WHISPER_DEVICE", "cpu"),
-        compute_type=env.str("FASTER_WHISPER_COMPUTE_TYPE", "int8"),
-        beam_size=env.int("FASTER_WHISPER_BEAM_SIZE", 5),
+        host=str(config.get("host", "127.0.0.1")).strip(),
+        port=int(config.get("port", 9000)),
+        reload=bool(config.get("reload", True)),
+        log_level=str(config.get("log_level", "info")).lower().strip(),
+        model_path=str(config.get("model_path", "medium")).strip(),
+        device=str(config.get("device", "cpu")).strip(),
+        compute_type=str(config.get("compute_type", "int8")).strip(),
+        beam_size=int(config.get("beam_size", 5)),
         language=language,
     )

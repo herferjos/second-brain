@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
-from common.utils.env import EnvReader
+from common.utils.yaml import load_yaml_config
 
 from .models import MacOcrSettings
 
 
 @lru_cache(maxsize=1)
 def load_settings() -> MacOcrSettings:
-    env = EnvReader()
+    config = load_yaml_config(Path(__file__).resolve().parents[2] / "config.yaml")
     return MacOcrSettings(
-        host=env.str("MAC_OCR_HOST", "127.0.0.1"),
-        port=env.int("MAC_OCR_PORT", 9093),
-        reload=env.bool("MAC_OCR_RELOAD", True),
-        log_level=env.str("MAC_OCR_LOG_LEVEL", "info").lower(),
+        host=str(config.get("host", "127.0.0.1")).strip(),
+        port=int(config.get("port", 9093)),
+        reload=bool(config.get("reload", True)),
+        log_level=str(config.get("log_level", "info")).lower().strip(),
     )

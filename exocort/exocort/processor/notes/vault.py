@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -58,7 +59,50 @@ def read_note(vault_dir: Path, relative_path: str) -> str:
     return note_path.read_text(encoding="utf-8")
 
 
-def list_notes(vault_dir: Path) -> list[str]:
+def list_notes(vault_dir: Path) -> list[dict[str, str]]:
     if not vault_dir.exists():
         return []
-    return sorted(str(path.relative_to(vault_dir)) for path in vault_dir.rglob("*.md") if path.is_file())
+    notes: list[dict[str, str]] = []
+    for path in sorted(p for p in vault_dir.rglob("*.md") if p.is_file()):
+        notes.append(
+            {
+                "path": str(path.relative_to(vault_dir)),
+                "summary": _extract_note_summary(path),
+            }
+        )
+    return notes
+
+
+def _extract_note_summary(note_path: Path) -> str:
+    lines = note_path.read_text(encoding="utf-8").splitlines()
+    summary_lines: list[str] = []
+    in_summary = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            if in_summary:
+                break
+            if stripped.lower() == "## summary":
+                in_summary = True
+            continue
+        if in_summary:
+            if stripped:
+                summary_lines.append(stripped)
+            elif summary_lines:
+                break
+
+    if summary_lines:
+        return _compress_text(" ".join(summary_lines))
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return _compress_text(stripped)
+
+    return ""
+
+
+def _compress_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()

@@ -30,6 +30,7 @@ def load_config(path: Path) -> ExocortSettings:
         raise ValueError("Config file must contain a YAML mapping at the top level.")
     capturer = _as_mapping(data.get("capturer", {}), "capturer")
     return ExocortSettings(
+        log_level=_parse_log_level(data.get("log_level", "INFO")),
         capturer=CapturerSettings(
             audio=_parse_audio_settings(capturer.get("audio", data.get("audio", {})), config_dir),
             screen=_parse_screen_settings(capturer.get("screen", data.get("screen", {})), config_dir),
@@ -115,6 +116,7 @@ def _parse_notes_settings(data: object, config_dir: Path) -> NotesSettings:
         api_key_env=str(mapping.get("api_key_env", "test_key")),
         temperature=float(mapping.get("temperature", 0.0)),
         max_tool_iterations=int(mapping.get("max_tool_iterations", 8)),
+        language=str(mapping.get("language", "English")),
         system_prompt=str(mapping.get("system_prompt", "")),
     )
 
@@ -175,10 +177,15 @@ def _resolve_path(value: object, config_dir: Path) -> Path:
     return (config_dir / path).resolve()
 
 
-def _parse_expired_in(value: object, label: str) -> int:
+def _parse_expired_in(value: object, label: str) -> int | bool:
+    if value is False:
+        return False
+    if value is True:
+        raise ValueError(f"{label} must be a non-negative integer or False.")
+
     seconds = int(value)
     if seconds < 0:
-        raise ValueError(f"{label} must be greater than or equal to 0.")
+        raise ValueError(f"{label} must be greater than or equal to 0, or False to keep files.")
     return seconds
 
 
@@ -192,3 +199,11 @@ def _parse_string_list(value: object, label: str) -> list[str]:
             raise ValueError(f"{label} must not contain empty values.")
         items.append(text)
     return items
+
+
+def _parse_log_level(value: object) -> str:
+    level = str(value).strip().upper()
+    allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    if level not in allowed:
+        raise ValueError(f"log_level must be one of: {', '.join(sorted(allowed))}.")
+    return level

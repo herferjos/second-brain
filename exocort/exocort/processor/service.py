@@ -36,6 +36,14 @@ log = get_logger("processor")
 def processing_loop(config: ExocortSettings) -> None:
     processor = config.processor
     threads: list[threading.Thread] = []
+    log.info(
+        "processor loop starting watch_dir=%s output_dir=%s ocr_enabled=%s asr_enabled=%s notes_enabled=%s",
+        processor.watch_dir,
+        processor.output_dir,
+        processor.ocr.enabled,
+        processor.asr.enabled,
+        processor.notes.enabled,
+    )
     if processor.ocr.enabled or processor.asr.enabled:
         threads.append(
             threading.Thread(
@@ -70,12 +78,16 @@ def _run_file_processor_loop(config: ExocortSettings) -> None:
         processor.output_dir,
     )
 
-    processed = process_existing_files(config)
-    if processed:
-        log.info("processed %s existing file(s)", processed)
-
     event_queue: queue.Queue[Path] = queue.Queue()
     event_handler = _QueuedPathHandler(event_queue)
+    worker_queues = _start_processing_workers(config, event_handler)
+
+    queued_existing = queue_existing_files(config, event_handler, worker_queues)
+    if queued_existing:
+        log.info("queued %s existing file(s) for processing", queued_existing)
+    else:
+        log.debug("no existing files found to process on startup")
+
     observer = Observer()
     observer.schedule(event_handler, str(processor.watch_dir), recursive=True)
     observer.start()
@@ -87,57 +99,58 @@ def _run_file_processor_loop(config: ExocortSettings) -> None:
             except queue.Empty:
                 continue
 
-            _process_file_if_supported(config, file_path)
-            event_handler.mark_done(file_path)
-            _drain_queue(config, event_queue, event_handler)
+            _dispatch_file_path(config, file_path, worker_queues, source="filesystem")
     finally:
         observer.stop()
         observer.join()
 
 
-def process_existing_files(config: ExocortSettings) -> int:
-    processed = 0
-    for file_path in _iter_supported_files(config.processor.watch_dir):
-        if _process_file_if_supported(config, file_path):
-            processed += 1
-    return processed
-
-
-def _drain_queue(
+def queue_existing_files(
     config: ExocortSettings,
-    event_queue: queue.Queue[Path],
     event_handler: "_QueuedPathHandler",
-) -> None:
-    while True:
-        try:
-            file_path = event_queue.get_nowait()
-        except queue.Empty:
-            return
-        _process_file_if_supported(config, file_path)
-        event_handler.mark_done(file_path)
+    worker_queues: dict[str, queue.Queue[Path]],
+) -> int:
+    queued = 0
+    for file_path in _iter_supported_files(config.processor.watch_dir):
+        if event_handler.track_existing(file_path):
+            _dispatch_file_path(config, file_path, worker_queues, source="startup")
+            queued += 1
+    return queued
 
 
 def _iter_supported_files(root: Path) -> list[Path]:
     return sorted(
         path
         for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+        if _is_supported_visible_file(path)
     )
 
 
 def _process_file_if_supported(config: ExocortSettings, file_path: Path) -> bool:
+    if not _is_supported_visible_file(file_path):
+        log.debug("skipping path=%s reason=hidden_or_missing", file_path.name)
+        return False
+
     processor = config.processor
     endpoint = _get_endpoint_config(processor, file_path)
     if endpoint is None:
+        log.debug("skipping path=%s reason=unsupported_or_disabled", file_path.name)
         return False
 
     output_path = _build_output_path(processor, file_path)
     sensitive_marker_path = _build_sensitive_marker_path(output_path)
     if output_path.exists() or sensitive_marker_path.exists():
+        log.debug("skipping path=%s reason=already_processed", file_path.name)
         return False
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        log.debug(
+            "processing path=%s kind=%s model=%s",
+            file_path.name,
+            _source_kind_for_path(file_path),
+            endpoint.model,
+        )
         text = _process_file(file_path, endpoint)
     except Exception as exc:
         if _is_empty_text_error(exc):
@@ -186,15 +199,84 @@ def _process_file_if_supported(config: ExocortSettings, file_path: Path) -> bool
     return True
 
 
+def _start_processing_workers(
+    config: ExocortSettings,
+    event_handler: "_QueuedPathHandler",
+) -> dict[str, queue.Queue[Path]]:
+    worker_queues: dict[str, queue.Queue[Path]] = {}
+    processor = config.processor
+
+    if processor.ocr.enabled:
+        ocr_queue: queue.Queue[Path] = queue.Queue()
+        worker_queues["ocr"] = ocr_queue
+        threading.Thread(
+            target=_processing_worker_loop,
+            args=(config, ocr_queue, event_handler, "ocr"),
+            name="ocr-worker",
+            daemon=True,
+        ).start()
+
+    if processor.asr.enabled:
+        asr_queue: queue.Queue[Path] = queue.Queue()
+        worker_queues["asr"] = asr_queue
+        threading.Thread(
+            target=_processing_worker_loop,
+            args=(config, asr_queue, event_handler, "asr"),
+            name="asr-worker",
+            daemon=True,
+        ).start()
+
+    return worker_queues
+
+
+def _dispatch_file_path(
+    config: ExocortSettings,
+    file_path: Path,
+    worker_queues: dict[str, queue.Queue[Path]],
+    *,
+    source: str,
+) -> None:
+    kind = _source_kind_for_processing(config.processor, file_path)
+    if kind is None:
+        log.debug("skipping queued path=%s source=%s reason=unsupported_or_disabled", file_path.name, source)
+        return
+    log.debug("dispatching path=%s source=%s kind=%s", file_path.name, source, kind)
+    worker_queues[kind].put(file_path)
+
+
+def _processing_worker_loop(
+    config: ExocortSettings,
+    work_queue: queue.Queue[Path],
+    event_handler: "_QueuedPathHandler",
+    kind: str,
+) -> None:
+    while True:
+        file_path = work_queue.get()
+        try:
+            log.debug("worker=%s processing path=%s", kind, file_path.name)
+            _process_file_if_supported(config, file_path)
+        finally:
+            event_handler.mark_done(file_path)
+
+
 def _get_endpoint_config(
     config: ProcessorSettings,
     file_path: Path,
 ) -> EndpointSettings | None:
-    suffix = file_path.suffix.lower()
-    if suffix in IMAGE_EXTENSIONS and config.ocr.enabled and config.ocr.model and config.ocr.api_base:
+    kind = _source_kind_for_processing(config, file_path)
+    if kind == "ocr" and config.ocr.model and config.ocr.api_base:
         return config.ocr
-    if suffix in AUDIO_EXTENSIONS and config.asr.enabled and config.asr.model and config.asr.api_base:
+    if kind == "asr" and config.asr.model and config.asr.api_base:
         return config.asr
+    return None
+
+
+def _source_kind_for_processing(config: ProcessorSettings, file_path: Path) -> str | None:
+    suffix = file_path.suffix.lower()
+    if suffix in IMAGE_EXTENSIONS and config.ocr.enabled:
+        return "ocr"
+    if suffix in AUDIO_EXTENSIONS and config.asr.enabled:
+        return "asr"
     return None
 
 
@@ -205,6 +287,12 @@ def _build_output_path(config: ProcessorSettings, file_path: Path) -> Path:
 
 def _process_file(file_path: Path, endpoint: EndpointSettings) -> str:
     api_key = os.getenv(endpoint.api_key_env, "test_key") if endpoint.api_key_env else "test_key"
+    log.debug(
+        "dispatching path=%s suffix=%s model=%s",
+        file_path.name,
+        file_path.suffix.lower(),
+        endpoint.model,
+    )
 
     if file_path.suffix.lower() in IMAGE_EXTENSIONS:
         return _process_ocr_file(file_path, endpoint, api_key)
@@ -274,7 +362,16 @@ def _captured_at_from_path(file_path: Path) -> datetime:
     return datetime.strptime(timestamp, "%Y%m%dT%H%M%S%f").replace(tzinfo=timezone.utc)
 
 
+def _is_supported_visible_file(file_path: Path) -> bool:
+    return (
+        file_path.is_file()
+        and not file_path.name.startswith(".")
+        and file_path.suffix.lower() in SUPPORTED_EXTENSIONS
+    )
+
+
 def _process_ocr_file(file_path: Path, endpoint: EndpointSettings, api_key: str) -> str:
+    log.debug("sending request kind=ocr path=%s", file_path.name)
     response = ocr(
         model=endpoint.model,
         document={"type": "file", "file": str(file_path)},
@@ -286,6 +383,7 @@ def _process_ocr_file(file_path: Path, endpoint: EndpointSettings, api_key: str)
 
 def _process_asr_file(file_path: Path, endpoint: EndpointSettings, api_key: str) -> str:
     with file_path.open("rb") as audio_file:
+        log.debug("sending request kind=asr path=%s", file_path.name)
         response = transcription(
             model=endpoint.model,
             file=audio_file,
@@ -315,6 +413,14 @@ class _QueuedPathHandler(FileSystemEventHandler):
     def mark_done(self, file_path: Path) -> None:
         resolved = file_path.resolve()
         self._queued.discard(resolved)
+        log.debug("marked done path=%s", resolved.name)
+
+    def track_existing(self, file_path: Path) -> bool:
+        resolved = file_path.expanduser().resolve()
+        if resolved in self._queued:
+            return False
+        self._queued.add(resolved)
+        return True
 
     def _queue_event(self, event: FileSystemEvent) -> None:
         if event.is_directory:
@@ -323,9 +429,13 @@ class _QueuedPathHandler(FileSystemEventHandler):
 
     def _queue_path(self, file_path: Path) -> None:
         resolved = file_path.expanduser().resolve()
+        if resolved.name.startswith("."):
+            return
         if resolved.suffix.lower() not in SUPPORTED_EXTENSIONS:
             return
         if resolved in self._queued:
+            log.debug("ignoring duplicate event path=%s", resolved.name)
             return
         self._queued.add(resolved)
+        log.debug("queued event path=%s", resolved.name)
         self._event_queue.put(resolved)

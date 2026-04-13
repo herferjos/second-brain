@@ -34,7 +34,7 @@ def _encode_wav(config: AudioSettings, recording: np.ndarray) -> bytes:
     return buffer.getvalue()
 
 
-def _capture_vad_segment(config: AudioSettings, vad: WebRTCVAD) -> tuple[np.ndarray, float]:
+def _capture_vad_segment(config: AudioSettings, vad: WebRTCVAD) -> tuple[np.ndarray, float, int]:
     window_frames = max(1, vad.frame_samples)
     max_segment_frames = max(window_frames, int(config.chunk_seconds * config.sample_rate))
     collector = _SegmentCollector(
@@ -44,31 +44,75 @@ def _capture_vad_segment(config: AudioSettings, vad: WebRTCVAD) -> tuple[np.ndar
         min_silence_chunks=max(1, int(round(config.vad.min_silence_seconds * config.sample_rate / window_frames))),
     )
     started_at = time.monotonic()
-    with sd.InputStream(samplerate=config.sample_rate, channels=config.channels, dtype="int16") as stream:
+    next_wait_log_at = started_at + 5.0
+    overflows = 0
+    log.debug(
+        "starting VAD capture window_frames=%s max_segment_frames=%s pre_roll_chunks=%s min_speech_chunks=%s min_silence_chunks=%s",
+        window_frames,
+        max_segment_frames,
+        collector.pre_roll_chunks,
+        collector.min_speech_chunks,
+        collector.min_silence_chunks,
+    )
+    with sd.InputStream(
+        samplerate=config.sample_rate,
+        channels=config.channels,
+        dtype="int16",
+        blocksize=window_frames,
+    ) as stream:
         while True:
-            chunk, _ = stream.read(window_frames)
+            chunk, overflowed = stream.read(window_frames)
+            if overflowed:
+                overflows += 1
             segment = collector.push(chunk, vad.is_speech(chunk))
             if segment is None:
+                if time.monotonic() >= next_wait_log_at:
+                    log.debug(
+                        "VAD still waiting speech_chunks=%s recording=%s frames=%s",
+                        collector.speech_chunks,
+                        collector.recording,
+                        collector.frames,
+                    )
+                    next_wait_log_at += 5.0
                 continue
-            return segment, time.monotonic() - started_at
+            log.debug(
+                "VAD completed segment frames=%s duration=%.2fs overflows=%s",
+                int(segment.shape[0]),
+                time.monotonic() - started_at,
+                overflows,
+            )
+            return segment, time.monotonic() - started_at, overflows
 
 
 def audio_loop(config: AudioSettings) -> None:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     output_dir = config.output_dir
     vad = WebRTCVAD(config.vad, config.sample_rate) if config.vad.enabled else None
+    log.info(
+        "audio capture loop started chunk_seconds=%ss sample_rate=%s channels=%s output_dir=%s vad_enabled=%s",
+        config.chunk_seconds,
+        config.sample_rate,
+        config.channels,
+        output_dir,
+        vad is not None,
+    )
     while True:
         if vad is None:
             started_at = time.monotonic()
+            log.debug("starting fixed-size audio capture for %ss", config.chunk_seconds)
             recording, audio_bytes = capture_audio_chunk(config)
             elapsed = time.monotonic() - started_at
+            overflows = 0
         else:
-            recording, elapsed = _capture_vad_segment(config, vad)
+            log.debug("waiting for VAD speech segment")
+            recording, elapsed, overflows = _capture_vad_segment(config, vad)
             audio_bytes = _encode_wav(config, recording)
         timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S%f")
         file_path = output_dir / f"{timestamp}.wav"
         file_path.write_bytes(audio_bytes)
         vad_suffix = f" (VAD ratio {vad.last_ratio:.2%})" if vad is not None else ""
+        if overflows:
+            log.warning("audio input overflowed %s time(s) while capturing %s", overflows, file_path)
         log.info(
             "captured %s bytes (%.1fs) -> %s%s",
             len(audio_bytes),

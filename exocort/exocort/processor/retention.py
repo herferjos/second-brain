@@ -9,9 +9,14 @@ from exocort.logs import get_logger
 log = get_logger("processor", "retention")
 
 
-def schedule_file_deletion(path: Path, *, expired_in: int, reason: str) -> None:
+def schedule_file_deletion(path: Path, *, expired_in: int | bool, reason: str) -> None:
+    if expired_in is False:
+        log.info("keeping %s forever (%s)", path, reason)
+        return
+    if isinstance(expired_in, bool):
+        raise ValueError("expired_in must be a non-negative integer or False.")
     if expired_in < 0:
-        raise ValueError("expired_in must be greater than or equal to 0.")
+        raise ValueError("expired_in must be greater than or equal to 0, or False to keep files.")
     if expired_in == 0:
         delete_file(path, reason=reason)
         return

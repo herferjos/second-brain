@@ -79,25 +79,23 @@ processor:
 Retention with `expired_in`
 ---------------------------
 
-Each `expired_in` value is expressed in seconds and must be `>= 0`.
+Each `expired_in` value is expressed in seconds and must be `>= 0`, or `False` to keep the file forever.
 
 - `capturer.audio.expired_in`: how long to keep each raw audio file after it has been successfully consumed by ASR.
 - `capturer.screen.expired_in`: how long to keep each raw screenshot after it has been successfully consumed by OCR.
-- `processor.asr.expired_in`: how long to keep each processed ASR JSON after it has been successfully consumed by `processor.notes`.
-- `processor.ocr.expired_in`: how long to keep each processed OCR JSON after it has been successfully consumed by `processor.notes`.
 - `processor.content_filter`: if a rule matches OCR/ASR text, the normal processed JSON is not written, a `.sensitive.json` marker is stored without the extracted text, and the raw capture is deleted immediately to avoid reprocessing.
 
 Behavior:
 
 - `expired_in: 0` deletes the file immediately after the successful consumer finishes using it.
 - `expired_in: 60` keeps it for 60 seconds after that successful use, then deletes it automatically.
+- `expired_in: False` keeps the file permanently and never schedules deletion.
 - Files are only scheduled for deletion after a successful handoff. If OCR, ASR, or notes fail, the corresponding file is kept.
 
 Practical examples:
 
 - Set `capturer.audio.expired_in: 0` if you want raw microphone captures to disappear as soon as transcription succeeds.
 - Set `capturer.screen.expired_in: 300` if you want screenshots available for five more minutes after OCR.
-- Set `processor.asr.expired_in: 0` and `processor.ocr.expired_in: 0` if you want the intermediate JSON artifacts removed as soon as `processor.notes` turns them into note updates.
 
 Expected endpoint contracts
 ---------------------------

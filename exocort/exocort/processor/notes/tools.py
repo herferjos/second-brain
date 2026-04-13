@@ -16,7 +16,7 @@ def tool_specs() -> list[dict[str, Any]]:
     return [
         _function_tool(
             "list_notes",
-            "List markdown notes available inside the vault so you can reuse existing thematic notes.",
+            "List markdown notes available inside the vault with their summaries so you can reuse existing thematic notes.",
             {"type": "object", "properties": {}, "additionalProperties": False},
         ),
         _function_tool(
@@ -76,7 +76,10 @@ def build_tool_handlers(vault_dir: Path) -> dict[str, ToolHandler]:
     return {
         "list_notes": lambda _: ToolCallResult(
             tool_name="list_notes",
-            summary=json.dumps({"paths": vault.list_notes(vault_dir)}, ensure_ascii=False),
+            summary=json.dumps(
+                {"notes": vault.list_notes(vault_dir)},
+                ensure_ascii=False,
+            ),
         ),
         "read_note": lambda args: ToolCallResult(
             tool_name="read_note",

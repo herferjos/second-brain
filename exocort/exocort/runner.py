@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import threading
+import multiprocessing
 from pathlib import Path
+import threading
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -13,8 +15,15 @@ DEFAULT_CONFIG_PATH = Path("config.yaml")
 log = get_logger("runner")
 
 
+def _run_service(target: Any, log_level: str, *args: Any) -> None:
+    configure_logging(log_level)
+    log.debug("starting service target=%s", getattr(target, "__name__", repr(target)))
+    target(*args)
+
+
 def run(config: ExocortSettings) -> None:
-    services: list[threading.Thread] = []
+    services: list[multiprocessing.Process] = []
+    threads: list[threading.Thread] = []
     capturer = config.capturer
     processor = config.processor
 
@@ -22,9 +31,9 @@ def run(config: ExocortSettings) -> None:
         from exocort.capturer.audio.capture import audio_loop
 
         services.append(
-            threading.Thread(
-                target=audio_loop,
-                args=(capturer.audio,),
+            multiprocessing.Process(
+                target=_run_service,
+                args=(audio_loop, config.log_level, capturer.audio),
                 name="audio-capturer",
             )
         )
@@ -32,7 +41,7 @@ def run(config: ExocortSettings) -> None:
     if capturer.screen.enabled:
         from exocort.capturer.screen.capture import screenshot_loop
 
-        services.append(
+        threads.append(
             threading.Thread(
                 target=screenshot_loop,
                 args=(capturer.screen,),
@@ -44,24 +53,34 @@ def run(config: ExocortSettings) -> None:
         from exocort.processor.service import processing_loop
 
         services.append(
-            threading.Thread(
-                target=processing_loop,
-                args=(config,),
+            multiprocessing.Process(
+                target=_run_service,
+                args=(processing_loop, config.log_level, config),
                 name="file-processor",
             )
         )
 
-    if not services:
+    if not services and not threads:
         log.info("no services enabled, nothing to run.")
         return
 
     for service in services:
         service.start()
+        log.info("started %s pid=%s", service.name, service.pid)
+    for thread in threads:
+        thread.start()
+        log.info("started %s thread", thread.name)
 
-    log.info("running %s service(s)", len(services))
+    log.info(
+        "running %s service(s) with log_level=%s",
+        len(services) + len(threads),
+        config.log_level,
+    )
 
     for service in services:
         service.join()
+    for thread in threads:
+        thread.join()
 
 
 def parse_args() -> argparse.Namespace:
@@ -77,9 +96,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     load_dotenv()
-    configure_logging()
     args = parse_args()
     config = load_config(args.config)
+    configure_logging(config.log_level)
+    log.debug("loaded config from %s", args.config.expanduser().resolve())
     run(config)
 
 

@@ -9,13 +9,13 @@ description = "Audio and screen capture utilities"
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "sounddevice==0.5.5",
-  "mss==10.1.0",
   "numpy==2.4.4",
   "webrtcvad-wheels==2.0.14",
   "litellm==1.83.4",
   "watchdog==6.0.0",
   "PyYAML==6.0.3",
   "python-dotenv==1.0.1",
+  "Pillow==12.1.0",
 ]
 
 [project.scripts]

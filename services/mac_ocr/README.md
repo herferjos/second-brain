@@ -41,4 +41,4 @@ uv sync
 uv run mac-ocr-service
 ```
 
-Config: copy `.env.example` to `.env` and adjust. Keys: `MAC_OCR_HOST`, `MAC_OCR_PORT`, `MAC_OCR_RELOAD`, `MAC_OCR_LOG_LEVEL`.
+Config: use `example.yaml` as the base for `config.yaml`. Keys: `host`, `port`, `reload`, `log_level`.

@@ -19,20 +19,20 @@ Matches the OpenAI `chat.completions` schema with `choices[]` and `usage`.
 
 Configuration
 
-Environment variables:
+`config.yaml` keys:
 
-- `LLAMA_CPP_MODEL_ID`: required Hugging Face repo id for auto-download (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`)
-- `LLAMA_CPP_QUANTIZATION`: required quantization level of the model to download (e.g. `Q4_K_M`)
-- `LLAMA_CPP_MODEL_DIR`: download target directory (default `./models`)
-- `LLAMA_CPP_CTX`: context size (default 4096)
-- `LLAMA_CPP_N_GPU_LAYERS`: GPU layers (default 0)
-- `LLAMA_CPP_THREADS`: CPU threads (default 0 = llama.cpp default)
-- `LLAMA_CPP_N_BATCH`: Batch size (default 512)
-- `LLAMA_CPP_SEED`: Seed for reproducibility (default 42)
-- `LLAMA_CPP_TEMPERATURE`: default temperature (default 0.2)
-- `LLAMA_CPP_HOST`: bind host (default 127.0.0.1)
-- `LLAMA_CPP_PORT`: bind port (default 9100)
-- `LLAMA_CPP_RELOAD`: enable `uvicorn` reload in local development (default True)
+- `model_id`: required Hugging Face repo id for auto-download (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`)
+- `quantization`: required quantization level of the model to download (e.g. `Q4_K_M`)
+- `model_dir`: download target directory (default `./models`)
+- `n_ctx`: context size (default 4096)
+- `n_gpu_layers`: GPU layers (default 0)
+- `n_threads`: CPU threads (default 0 = llama.cpp default)
+- `n_batch`: batch size (default 512)
+- `seed`: seed for reproducibility (default 42)
+- `temperature`: default temperature (default 0.2)
+- `host`: bind host (default 127.0.0.1)
+- `port`: bind port (default 9100)
+- `reload`: enable `uvicorn` reload in local development (default `true`)
 
 Running
 
@@ -43,7 +43,7 @@ uv sync
 uv run llama-cpp-service
 ```
 
-Copy `.env.example` to `.env` before running. The example file includes the code defaults for optional runtime knobs and sample values for the required model settings.
+Use `example.yaml` as the base for `config.yaml` before running. The example file includes the code defaults for optional runtime knobs and sample values for the required model settings.
 
 If the model file is not present locally, the service will download the specified
 quantization of the model from Hugging Face on startup.

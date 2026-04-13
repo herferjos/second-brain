@@ -135,7 +135,6 @@ dependencies = [
     { name = "pyobjc-core" },
     { name = "pyobjc-framework-cocoa" },
     { name = "pyobjc-framework-speech" },
-    { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -154,7 +153,6 @@ requires-dist = [
     { name = "pyobjc-framework-cocoa", specifier = "==12.1" },
     { name = "pyobjc-framework-speech", specifier = "==12.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.2" },
-    { name = "python-dotenv", specifier = "==1.2.2" },
     { name = "python-multipart", specifier = "==0.0.22" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.41.0" },
 ]
@@ -167,14 +165,14 @@ source = { editable = "../common" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
-    { name = "python-dotenv" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = "==0.135.1" },
     { name = "pydantic", specifier = "==2.12.5" },
-    { name = "python-dotenv", specifier = "==1.2.2" },
+    { name = "pyyaml", specifier = "==6.0.3" },
 ]
 
 [[package]]

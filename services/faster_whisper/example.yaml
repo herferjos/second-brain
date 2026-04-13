@@ -1,21 +1,22 @@
 # Path to the Faster Whisper model. Can be a local path or a model name from the Hugging Face Hub.
 # Examples: "tiny", "base", "small", "medium", "large-v2"
-FASTER_WHISPER_MODEL_PATH="medium"
+model_path: medium
 
 # Device to use for computation. "cpu" or "cuda".
-FASTER_WHISPER_DEVICE="cpu"
+device: cpu
 
 # Type of computation. Examples: "int8", "float16".
-FASTER_WHISPER_COMPUTE_TYPE="int8"
+compute_type: int8
 
 # Beam size for the transcription.
-FASTER_WHISPER_BEAM_SIZE=5
+beam_size: 5
 
 # Language for transcription. Set to "auto" for automatic detection.
 # You can also specify a language code, e.g., "en", "es", "fr".
-FASTER_WHISPER_LANGUAGE="auto"
+language: auto
 
-# Host and port for the FastAPI server
-FASTER_WHISPER_HOST="127.0.0.1"
-FASTER_WHISPER_PORT=9000
-FASTER_WHISPER_RELOAD=true
+# Host and port for the FastAPI server.
+host: 127.0.0.1
+port: 9000
+reload: true
+log_level: info

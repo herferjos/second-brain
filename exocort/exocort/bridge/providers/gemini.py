@@ -5,12 +5,20 @@ from typing import Any
 
 from ..client import HttpClient
 from ..models.asr import AsrRequest, AsrResult
-from ..models.ocr import OcrPage, OcrRequest, OcrResult
+from ..models.ocr import OcrRequest, OcrResult
 from ..models.response import ResponseRequest, ResponseResult, ToolCall
 from ..utils.media import guess_mime_type, media_to_base64
 from ..utils.messages import text_from_content
 from ..utils.provider import split_model_provider
 from ..utils.urls import join_url
+from .common import (
+    api_key_json_headers,
+    content_as_text_blocks,
+    ensure_text,
+    normalize_function_arguments,
+    require_payload,
+    single_page_ocr_result,
+)
 
 DEFAULT_ASR_PROMPT = "Transcribe the audio and return only the transcript."
 DEFAULT_OCR_PROMPT = "Extract the readable text from this image and return only the extracted text."
@@ -42,10 +50,8 @@ def asr(
         headers=_headers(api_key, extra_headers),
         payload=payload,
     )
-    payload_json = _require_payload(response.json, "ASR")
-    text = _candidate_text(payload_json).strip()
-    if not text:
-        raise ValueError("ASR response text is empty.")
+    payload_json = require_payload(response.json, "ASR")
+    text = ensure_text(_candidate_text(payload_json), "ASR response text")
     return AsrResult(text=text, raw=payload_json)
 
 
@@ -74,15 +80,8 @@ def ocr(
         headers=_headers(api_key, extra_headers),
         payload=payload,
     )
-    payload_json = _require_payload(response.json, "OCR")
-    text = _candidate_text(payload_json).strip()
-    if not text:
-        raise ValueError("OCR page markdown is empty.")
-    return OcrResult(
-        text=text,
-        pages=(OcrPage(index=0, text=text),),
-        raw=payload_json,
-    )
+    payload_json = require_payload(response.json, "OCR")
+    return single_page_ocr_result(_candidate_text(payload_json), payload_json, "OCR page markdown")
 
 
 def response(
@@ -103,7 +102,7 @@ def response(
         headers=_headers(api_key, extra_headers),
         payload=payload,
     )
-    payload_json = _require_payload(response.json, "response")
+    payload_json = require_payload(response.json, "response")
     message, tool_calls = _message_from_response(payload_json)
     return ResponseResult(
         message=message,
@@ -114,11 +113,7 @@ def response(
 
 
 def _headers(api_key: str, extra_headers: dict[str, str]) -> dict[str, str]:
-    return {
-        "x-goog-api-key": api_key,
-        "Content-Type": "application/json",
-        **extra_headers,
-    }
+    return api_key_json_headers("x-goog-api-key", api_key, extra_headers)
 
 
 def _generate_content_url(api_base: str, model: str) -> str:
@@ -172,11 +167,7 @@ def _build_generate_content_payload(
                     function = tool_call.get("function")
                     if not isinstance(function, dict):
                         continue
-                    arguments = function.get("arguments", "{}")
-                    if isinstance(arguments, str):
-                        arguments = json.loads(arguments or "{}")
-                    if not isinstance(arguments, dict):
-                        arguments = {}
+                    arguments = normalize_function_arguments(function.get("arguments", "{}"))
                     parts.append(
                         {
                             "functionCall": {
@@ -204,19 +195,13 @@ def _build_generate_content_payload(
 
 def _parts_from_message(message: dict[str, Any]) -> list[dict[str, Any]]:
     content = message.get("content")
-    parts: list[dict[str, Any]] = []
-    if isinstance(content, str):
-        parts.append({"text": content})
-    elif isinstance(content, list):
+    parts = content_as_text_blocks(content)
+    if isinstance(content, list):
         for item in content:
             if not isinstance(item, dict):
                 continue
             item_type = str(item.get("type", "text"))
-            if item_type == "text":
-                text = item.get("text")
-                if isinstance(text, str):
-                    parts.append({"text": text})
-            elif item_type in {"image", "input_audio"}:
+            if item_type in {"image", "input_audio"}:
                 media = item.get("media")
                 if not hasattr(media, "file_path"):
                     continue
@@ -245,7 +230,7 @@ def _parts_from_message(message: dict[str, Any]) -> list[dict[str, Any]]:
                     {
                         "functionCall": {
                             "name": str(item.get("name", "")),
-                            "args": item.get("arguments", {}),
+                            "args": normalize_function_arguments(item.get("arguments", {})),
                         }
                     }
                 )
@@ -321,9 +306,3 @@ def _message_from_response(payload: dict[str, Any]) -> tuple[dict[str, Any], tup
 def _candidate_text(payload: dict[str, Any]) -> str:
     message, _ = _message_from_response(payload)
     return text_from_content(message.get("content"))
-
-
-def _require_payload(payload: dict[str, Any] | None, label: str) -> dict[str, Any]:
-    if payload is None:
-        raise ValueError(f"{label} endpoint did not return JSON.")
-    return payload

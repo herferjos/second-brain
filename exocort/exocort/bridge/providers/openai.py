@@ -1,18 +1,49 @@
 from __future__ import annotations
 
-import json
-from typing import Any
-
 from ..client import HttpClient
 from ..models.asr import AsrRequest, AsrResult
-from ..models.ocr import OcrPage, OcrRequest, OcrResult
-from ..models.response import ResponseRequest, ResponseResult, ToolCall
+from ..models.ocr import OcrRequest, OcrResult
+from ..models.response import ResponseRequest, ResponseResult
 from ..utils.media import guess_mime_type, media_to_data_uri, read_media_bytes
-from ..utils.messages import collect_tool_calls, text_from_content
 from ..utils.provider import split_model_provider
 from ..utils.urls import maybe_join_openai_path
+from .common import (
+    bearer_json_headers,
+    compact_strings,
+    ensure_text,
+    float_to_str,
+    response_from_chat_completion,
+    require_payload,
+    single_page_ocr_result,
+)
 
 DEFAULT_OCR_PROMPT = "Extract the readable text from this image. Return only the extracted text."
+_ASR_LANGUAGE_CODES = {
+    "arabic": "ar",
+    "chinese": "zh",
+    "dutch": "nl",
+    "english": "en",
+    "french": "fr",
+    "german": "de",
+    "italian": "it",
+    "japanese": "ja",
+    "korean": "ko",
+    "portuguese": "pt",
+    "russian": "ru",
+    "spanish": "es",
+}
+
+
+def _asr_language_code(language: str | None) -> str:
+    value = (language or "").strip()
+    if not value:
+        return ""
+    normalized = value.lower().replace("_", "-")
+    if normalized in _ASR_LANGUAGE_CODES:
+        return _ASR_LANGUAGE_CODES[normalized]
+    if "-" in normalized:
+        return normalized.split("-", 1)[0]
+    return normalized
 
 
 def asr(
@@ -36,19 +67,17 @@ def asr(
                 guess_mime_type(req.media),
             )
         },
-        data=_compact_strings(
+        data=compact_strings(
             {
                 "model": model,
-                "language": req.language or "",
+                "language": _asr_language_code(req.language),
                 "prompt": req.prompt or "",
-                "temperature": _float_to_str(req.temperature),
+                "temperature": float_to_str(req.temperature),
             }
         ),
     )
-    payload = _require_payload(response.json, "ASR")
-    text = str(payload.get("text", "")).strip()
-    if not text:
-        raise ValueError("ASR response text is empty.")
+    payload = require_payload(response.json, "ASR")
+    text = ensure_text(str(payload.get("text", "")), "ASR response text")
     segments = tuple(item for item in payload.get("segments", []) if isinstance(item, dict))
     language = payload.get("language")
     return AsrResult(
@@ -84,14 +113,7 @@ def ocr(
         ResponseRequest(model=model, messages=messages),
         extra_headers,
     )
-    text = result.text.strip()
-    if not text:
-        raise ValueError("OCR page markdown is empty.")
-    return OcrResult(
-        text=text,
-        pages=(OcrPage(index=0, text=text),),
-        raw=result.raw,
-    )
+    return single_page_ocr_result(result.text, result.raw or {}, "OCR page markdown")
 
 
 def response(
@@ -103,11 +125,7 @@ def response(
 ) -> ResponseResult:
     _, model = split_model_provider(req.model)
     url = maybe_join_openai_path(api_base, "/chat/completions")
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        **extra_headers,
-    }
+    headers = bearer_json_headers(api_key, extra_headers)
     payload = {
         "model": model,
         "messages": list(req.messages),
@@ -119,56 +137,5 @@ def response(
     if req.temperature is not None:
         payload["temperature"] = req.temperature
     response_data = client.post_json(url, headers=headers, payload=payload)
-    payload_json = _require_payload(response_data.json, "response")
-    choices = payload_json.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise ValueError("response payload must include choices.")
-    choice = choices[0]
-    if not isinstance(choice, dict):
-        raise ValueError("response choice must be an object.")
-    message = choice.get("message")
-    if not isinstance(message, dict):
-        raise ValueError("response choice must include a message object.")
-    tool_calls = tuple(_parse_tool_call(item) for item in collect_tool_calls(message))
-    return ResponseResult(
-        message=message,
-        text=text_from_content(message.get("content")),
-        tool_calls=tool_calls,
-        raw=payload_json,
-    )
-
-
-def _compact_strings(values: dict[str, str]) -> dict[str, str]:
-    return {key: value for key, value in values.items() if value != ""}
-
-
-def _float_to_str(value: float | None) -> str:
-    if value is None:
-        return ""
-    return json.dumps(value)
-
-
-def _require_payload(payload: dict[str, Any] | None, label: str) -> dict[str, Any]:
-    if payload is None:
-        raise ValueError(f"{label} endpoint did not return JSON.")
-    return payload
-
-
-def _parse_tool_call(tool_call: dict[str, Any]) -> ToolCall:
-    function = tool_call.get("function")
-    if not isinstance(function, dict):
-        raise ValueError("tool call must include function details.")
-    raw_arguments = function.get("arguments", "{}")
-    if isinstance(raw_arguments, str):
-        arguments = json.loads(raw_arguments or "{}")
-    elif isinstance(raw_arguments, dict):
-        arguments = raw_arguments
-    else:
-        raise ValueError("tool arguments must be a JSON object.")
-    if not isinstance(arguments, dict):
-        raise ValueError("tool arguments must decode to an object.")
-    return ToolCall(
-        id=str(tool_call.get("id")) if tool_call.get("id") is not None else None,
-        name=str(function.get("name", "")).strip(),
-        arguments=arguments,
-    )
+    payload_json = require_payload(response_data.json, "response")
+    return response_from_chat_completion(payload_json)

@@ -28,7 +28,7 @@ processor:
   ocr:
     enabled: true
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-5-mini
     api_base: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
     format: llm
@@ -46,7 +46,7 @@ processor:
   asr:
     enabled: true
     provider: openai
-    model: gpt-4o-mini-transcribe
+    model: whisper-1
     api_base: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
     format: asr

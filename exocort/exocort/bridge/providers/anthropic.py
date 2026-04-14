@@ -4,11 +4,18 @@ import json
 from typing import Any
 
 from ..client import HttpClient
-from ..models.ocr import OcrPage, OcrRequest, OcrResult
-from ..models.response import ResponseRequest, ResponseResult, ToolCall
+from ..models.ocr import OcrRequest, OcrResult
+from ..models.response import ResponseRequest, ResponseResult
 from ..utils.media import guess_mime_type, media_to_base64
 from ..utils.messages import text_from_content
 from ..utils.provider import split_model_provider
+from .common import (
+    api_key_json_headers,
+    content_as_text_blocks,
+    normalize_function_arguments,
+    require_payload,
+    single_page_ocr_result,
+)
 
 DEFAULT_OCR_PROMPT = "Extract the readable text from this image. Return only the extracted text."
 ANTHROPIC_VERSION = "2023-06-01"
@@ -40,10 +47,7 @@ def ocr(
         ),
         extra_headers,
     )
-    text = result.text.strip()
-    if not text:
-        raise ValueError("OCR page markdown is empty.")
-    return OcrResult(text=text, pages=(OcrPage(index=0, text=text),), raw=result.raw)
+    return single_page_ocr_result(result.text, result.raw or {}, "OCR page markdown")
 
 
 def response(
@@ -55,10 +59,8 @@ def response(
 ) -> ResponseResult:
     _, model = split_model_provider(req.model)
     headers = {
-        "x-api-key": api_key,
+        **api_key_json_headers("x-api-key", api_key, extra_headers),
         "anthropic-version": ANTHROPIC_VERSION,
-        "content-type": "application/json",
-        **extra_headers,
     }
     system_prompt, messages = _messages_for_anthropic(req.messages)
     payload: dict[str, Any] = {
@@ -73,7 +75,7 @@ def response(
     if req.tools:
         payload["tools"] = [_tool_to_anthropic(tool) for tool in req.tools]
     response = client.post_json(_messages_url(api_base), headers=headers, payload=payload)
-    payload_json = _require_payload(response.json)
+    payload_json = require_payload(response.json, "Anthropic")
     message, tool_calls = _message_from_response(payload_json)
     return ResponseResult(
         message=message,
@@ -114,11 +116,7 @@ def _messages_for_anthropic(messages: tuple[dict[str, Any], ...]) -> tuple[str, 
                 function = tool_call.get("function")
                 if not isinstance(function, dict):
                     continue
-                arguments = function.get("arguments", "{}")
-                if isinstance(arguments, str):
-                    arguments = json.loads(arguments or "{}")
-                if not isinstance(arguments, dict):
-                    arguments = {}
+                arguments = normalize_function_arguments(function.get("arguments", "{}"))
                 content.append(
                     {
                         "type": "tool_use",
@@ -133,20 +131,14 @@ def _messages_for_anthropic(messages: tuple[dict[str, Any], ...]) -> tuple[str, 
 
 def _content_blocks(message: dict[str, Any]) -> list[dict[str, Any]]:
     content = message.get("content")
-    if isinstance(content, str):
-        return [{"type": "text", "text": content}]
-    blocks: list[dict[str, Any]] = []
+    blocks = content_as_text_blocks(content)
     if not isinstance(content, list):
         return blocks
     for item in content:
         if not isinstance(item, dict):
             continue
         item_type = str(item.get("type", "text"))
-        if item_type == "text":
-            text = item.get("text")
-            if isinstance(text, str):
-                blocks.append({"type": "text", "text": text})
-        elif item_type == "image":
+        if item_type == "image":
             media = item.get("media")
             if media is None:
                 continue
@@ -216,12 +208,6 @@ def _message_from_response(payload: dict[str, Any]) -> tuple[dict[str, Any], tup
         or None,
     }
     return message, tuple(tool_calls)
-
-
-def _require_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
-    if payload is None:
-        raise ValueError("Anthropic endpoint did not return JSON.")
-    return payload
 
 
 def _messages_url(api_base: str) -> str:

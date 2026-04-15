@@ -4,10 +4,12 @@ import json
 import threading
 import time
 from pathlib import Path
+from collections.abc import Mapping
 
 from fastapi import HTTPException
 from huggingface_hub import hf_hub_download
 from llama_cpp import Llama
+from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
 from common.models.chat import (
     ChatCompletionRequest,
@@ -20,7 +22,7 @@ from common.models.health import HealthResponse
 from common.utils.logs import get_logger
 
 from ..config.models import LlamaCppSettings
-from ..config.settings import load_settings
+from ..config.settings import load_chat_template, load_settings
 
 log = get_logger("llama_cpp", "chat")
 _settings: LlamaCppSettings | None = None
@@ -30,6 +32,54 @@ _llama_lock = threading.Lock()
 
 def _model_name(settings: LlamaCppSettings) -> str:
     return settings.model_id
+
+
+def _token_text(llama: Llama, token_id: int) -> str:
+    return llama.detokenize([token_id]).decode("utf-8", errors="ignore")
+
+
+def _build_chat_handler(template: str):
+    def chat_handler(
+        *,
+        llama: Llama,
+        messages: list[dict[str, object]],
+        **kwargs: object,
+    ) -> object:
+        formatter = Jinja2ChatFormatter(
+            template=template,
+            eos_token=_token_text(llama, llama.token_eos()),
+            bos_token=_token_text(llama, llama.token_bos()),
+        ).to_chat_handler()
+        return formatter(llama=llama, messages=messages, **kwargs)
+
+    return chat_handler
+
+
+def _normalize_tool_calls(tool_calls: object) -> object:
+    if not isinstance(tool_calls, list):
+        return tool_calls
+
+    normalized_tool_calls: list[object] = []
+    for tool_call in tool_calls:
+        if not isinstance(tool_call, Mapping):
+            normalized_tool_calls.append(tool_call)
+            continue
+
+        normalized_tool_call = dict(tool_call)
+        function = normalized_tool_call.get("function")
+        if isinstance(function, Mapping):
+            normalized_function = dict(function)
+            arguments = normalized_function.get("arguments")
+            if isinstance(arguments, str):
+                try:
+                    parsed_arguments = json.loads(arguments)
+                except Exception:
+                    parsed_arguments = arguments
+                normalized_function["arguments"] = parsed_arguments
+            normalized_tool_call["function"] = normalized_function
+        normalized_tool_calls.append(normalized_tool_call)
+
+    return normalized_tool_calls
 
 
 def _ensure_model_path(settings: LlamaCppSettings) -> Path:
@@ -59,7 +109,6 @@ def _load_llama(settings: LlamaCppSettings) -> Llama:
     model_path = _ensure_model_path(settings)
     kwargs: dict[str, object] = {
         "model_path": str(model_path),
-        "chat_format": settings.chat_format,
         "n_ctx": settings.n_ctx,
         "n_gpu_layers": settings.n_gpu_layers,
         "n_batch": settings.n_batch,
@@ -68,6 +117,11 @@ def _load_llama(settings: LlamaCppSettings) -> Llama:
     }
     if settings.n_threads > 0:
         kwargs["n_threads"] = settings.n_threads
+    chat_template = load_chat_template(settings.chat_format)
+    if chat_template is not None:
+        kwargs["chat_handler"] = _build_chat_handler(chat_template)
+    else:
+        kwargs["chat_format"] = settings.chat_format
     return Llama(**kwargs)
 
 
@@ -90,7 +144,7 @@ def _normalize_messages(messages: list[ChatMessage]) -> list[dict[str, object]]:
         if msg.tool_call_id is not None:
             normalized["tool_call_id"] = msg.tool_call_id
         if msg.tool_calls is not None:
-            normalized["tool_calls"] = msg.tool_calls
+            normalized["tool_calls"] = _normalize_tool_calls(msg.tool_calls)
         out.append(normalized)
     return out
 
@@ -179,6 +233,9 @@ def chat_completions(payload: ChatCompletionRequest) -> ChatCompletionResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     if isinstance(response, dict):
         response_data: dict[str, object] = response
+        print("======DEBUG=======")
+        print(response_data)
+        print("======DEBUG=======")
     else:
         try:
             if not isinstance(response, (str, bytes, bytearray)):

@@ -6,6 +6,7 @@ quantization: Q4_K_M
 
 # Optional runtime settings.
 model_dir: ./llms
+# Can also be a local .jinja file or an http(s) URL to a template.
 chat_format: chatml-function-calling
 n_ctx: 4096
 n_gpu_layers: 0

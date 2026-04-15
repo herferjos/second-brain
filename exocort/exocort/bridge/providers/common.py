@@ -9,7 +9,7 @@ from ..utils.messages import collect_tool_calls, text_from_content
 
 
 def content_as_text_blocks(content: object) -> list[dict[str, Any]]:
-    if isinstance(content, str):
+    if isinstance(content, str) and content.strip():
         return [{"type": "text", "text": content}]
     if not isinstance(content, list):
         return []

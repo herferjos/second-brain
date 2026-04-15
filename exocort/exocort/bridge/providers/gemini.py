@@ -195,7 +195,7 @@ def _build_generate_content_payload(
 
 def _parts_from_message(message: dict[str, Any]) -> list[dict[str, Any]]:
     content = message.get("content")
-    parts = content_as_text_blocks(content)
+    parts = [{"text": part["text"]} for part in content_as_text_blocks(content) if isinstance(part.get("text"), str) and part["text"]]
     if isinstance(content, list):
         for item in content:
             if not isinstance(item, dict):

@@ -6,7 +6,6 @@ import types
 
 import pytest
 from fastapi import HTTPException
-from starlette.responses import Response
 from starlette.datastructures import UploadFile
 
 from common.models.asr import TranscriptionRequest, TranscriptionResponse
@@ -72,7 +71,7 @@ def test_transcribe_audio_requires_permission(monkeypatch: pytest.MonkeyPatch) -
     assert exc.value.status_code == 409
 
 
-def test_transcribe_audio_no_speech_returns_204(
+def test_transcribe_audio_no_speech_returns_empty_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -94,11 +93,16 @@ def test_transcribe_audio_no_speech_returns_204(
 
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
     resp = asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="es-ES")))
-    assert isinstance(resp, Response)
-    assert resp.status_code == 204
+    assert isinstance(resp, TranscriptionResponse)
+    assert resp.model_dump() == {
+        "text": "",
+        "task": "transcribe",
+        "language": "es-ES",
+        "duration": None,
+    }
 
 
-def test_transcribe_audio_retry_error_returns_204(
+def test_transcribe_audio_retry_error_returns_empty_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -122,11 +126,16 @@ def test_transcribe_audio_retry_error_returns_204(
 
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
     resp = asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="es-ES")))
-    assert isinstance(resp, Response)
-    assert resp.status_code == 204
+    assert isinstance(resp, TranscriptionResponse)
+    assert resp.model_dump() == {
+        "text": "",
+        "task": "transcribe",
+        "language": "es-ES",
+        "duration": None,
+    }
 
 
-def test_transcribe_audio_empty_text_returns_204(
+def test_transcribe_audio_empty_text_returns_empty_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -149,8 +158,13 @@ def test_transcribe_audio_empty_text_returns_204(
 
     upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
     resp = asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="es-ES")))
-    assert isinstance(resp, Response)
-    assert resp.status_code == 204
+    assert isinstance(resp, TranscriptionResponse)
+    assert resp.model_dump() == {
+        "text": "",
+        "task": "transcribe",
+        "language": "es-ES",
+        "duration": None,
+    }
 
 
 def test_transcribe_audio_auto_language_uses_default_detector(
@@ -201,3 +215,30 @@ def test_transcribe_audio_auto_language_uses_default_detector(
         "duration": None,
     }
     assert captured["locale"] == "en-US"
+
+
+def test_transcribe_audio_discarded_locale_returns_empty_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "services.mac_asr.app.api.v1.endpoints.transcriptions.ensure_speech_permission",
+        lambda prompt=False: True,
+    )
+    monkeypatch.setattr(
+        "src.config.settings.load_settings",
+        lambda: types.SimpleNamespace(default_locale="es", transcription_timeout_s=30.0),
+    )
+    monkeypatch.setattr(
+        "services.mac_asr.app.api.v1.endpoints.transcriptions.resolve_request_locale",
+        lambda path, language: "",
+    )
+
+    upload = UploadFile(filename="voice.wav", file=io.BytesIO(b"fake-audio"))
+    resp = asyncio.run(transcribe_audio(file=upload, payload=TranscriptionRequest(language="auto")))
+    assert isinstance(resp, TranscriptionResponse)
+    assert resp.model_dump() == {
+        "text": "",
+        "task": "transcribe",
+        "language": "es",
+        "duration": None,
+    }

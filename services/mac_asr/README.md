@@ -19,7 +19,7 @@ One job: **transcribe audio**. HTTP API that accepts an audio file and returns a
 }
 ```
 
-  If no speech is detected, it returns HTTP `204`.
+  If no speech is detected, or the request is discarded by language detection, it returns the same JSON shape with `text` set to an empty string.
   If another `response_format` is sent, the service returns HTTP `400`.
 - **GET /health** — readiness and locale.
 
@@ -38,7 +38,7 @@ Config: use `example.yaml` as the base for `config.yaml`. Keys: `host`, `port`, 
 Set `locale: auto` to enable language detection by default, or use a fixed locale like `es-ES` to force transcription in that locale.
 `default_locale` is used whenever detection is enabled but its confidence is below 70%; it defaults to `es`.
 The service maps bare language codes like `es` to a supported macOS locale before transcription, so you can use either `es` or `es-ES`.
-`detect_discard_min_prob` defaults to `0.5`; below that the audio is discarded with `204`.
+`detect_discard_min_prob` defaults to `0.5`; below that the audio is discarded and the service returns an empty transcription payload.
 `detect_default_min_prob` defaults to `0.7`; between the two thresholds the service falls back to `default_locale`.
 
 Language detection
@@ -47,7 +47,7 @@ Language detection
 If `locale: auto` and the request omits `language` (or uses `auto`),
 the service uses `faster-whisper` to detect the language and maps it to a supported
 macOS locale before transcription. If the detected probability is below 50%, it discards
-the audio and returns `204`. Between 50% and 70%, it falls back to `default_locale`
+the audio and returns an empty transcription payload. Between 50% and 70%, it falls back to `default_locale`
 instead of trusting the prediction. The detection
 model defaults to `tiny` but can be overridden via `detect_model`.
 `faster-whisper` bundles the FFmpeg runtime it needs, so you do not have to install

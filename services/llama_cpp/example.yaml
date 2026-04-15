@@ -6,6 +6,7 @@ quantization: Q4_K_M
 
 # Optional runtime settings.
 model_dir: ./llms
+chat_format: chatml-function-calling
 n_ctx: 4096
 n_gpu_layers: 0
 n_threads: 0

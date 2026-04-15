@@ -25,15 +25,20 @@ def ocr_image_path(path: Path) -> OcrResponse:
         len(text),
         text[:200],
     )
+    pages = (
+        []
+        if not text
+        else [
+            {
+                "index": 0,
+                "markdown": text,
+                "images": [],
+            }
+        ]
+    )
     return OcrResponse.model_validate(
         {
-            "pages": [
-                {
-                    "index": 0,
-                    "markdown": text,
-                    "images": [],
-                }
-            ],
+            "pages": pages,
             "model": "mac-ocr",
             "usage_info": {
                 "pages_processed": 1,

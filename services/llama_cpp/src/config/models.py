@@ -10,6 +10,7 @@ class LlamaCppSettings:
     port: int
     reload: bool
     log_level: str
+    chat_format: str
     model_id: str
     quantization: str
     model_dir: Path

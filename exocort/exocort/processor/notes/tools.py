@@ -77,7 +77,14 @@ def build_tool_handlers(vault_dir: Path) -> dict[str, ToolHandler]:
         "list_notes": lambda _: ToolCallResult(
             tool_name="list_notes",
             summary=json.dumps(
-                {"notes": vault.list_notes(vault_dir)},
+                (
+                    {"notes": notes}
+                    if (notes := vault.list_notes(vault_dir))
+                    else {
+                        "notes": [],
+                        "message": "There are no notes in the vault yet."
+                    }
+                ),
                 ensure_ascii=False,
             ),
         ),

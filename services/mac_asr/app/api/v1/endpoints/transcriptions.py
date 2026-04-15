@@ -5,7 +5,6 @@ from tempfile import gettempdir
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from starlette.responses import Response
 
 from common.models.asr import TranscriptionRequest, TranscriptionResponse
 from common.utils.logs import get_logger
@@ -24,7 +23,7 @@ router = APIRouter()
 async def transcribe_audio(
     file: UploadFile = File(...),
     payload: TranscriptionRequest = Depends(TranscriptionRequest.as_form),
-) -> TranscriptionResponse | Response:
+) -> TranscriptionResponse:
     settings = load_settings()
     log.debug(
         "Received ASR request | filename=%s | model=%s | language=%s | response_format=%s | temperature=%s",
@@ -48,7 +47,7 @@ async def transcribe_audio(
         log.debug("Resolved ASR locale | requested=%s | resolved=%s", payload.language, locale)
         if not locale:
             log.debug("Skipping ASR request with empty locale | path=%s", path)
-            return Response(status_code=204)
+            return _empty_transcription_response(settings.default_locale)
         try:
             result = transcribe_audio_file(
                 path,
@@ -62,7 +61,7 @@ async def transcribe_audio(
                     locale,
                     file.filename,
                 )
-                return Response(status_code=204)
+                return _empty_transcription_response(locale)
             log.debug(
                 "ASR response ready | path=%s | locale=%s | text_len=%s",
                 path,
@@ -81,8 +80,16 @@ async def transcribe_audio(
                     locale,
                     file.filename,
                 )
-                return Response(status_code=204)
+                return _empty_transcription_response(locale)
             raise
     finally:
         log.debug("Cleaning ASR temp audio | path=%s", path)
         path.unlink(missing_ok=True)
+
+
+def _empty_transcription_response(language: str | None) -> TranscriptionResponse:
+    return TranscriptionResponse(
+        text="",
+        language=(language or "").strip(),
+        duration=None,
+    )

@@ -28,6 +28,8 @@ One job: **OCR an image**. HTTP API that accepts the LiteLLM-normalized OCR inpu
   "object": "ocr"
 }
 ```
+
+If no readable text is detected, the service returns the same response shape with `pages` set to an empty list.
 - **GET /health** — readiness.
 
 This is the OCR format Exocort expects when it sends images through LiteLLM-compatible endpoints.

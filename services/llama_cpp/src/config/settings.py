@@ -25,6 +25,7 @@ def load_settings() -> LlamaCppSettings:
         port=int(config.get("port", 9100)),
         reload=bool(config.get("reload", True)),
         log_level=str(config.get("log_level", "info")).lower().strip(),
+        chat_format=str(config.get("chat_format", "chatml-function-calling")).strip(),
         model_id=model_id,
         quantization=quantization,
         model_dir=model_dir,

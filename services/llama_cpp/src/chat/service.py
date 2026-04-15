@@ -9,14 +9,18 @@ from fastapi import HTTPException
 from huggingface_hub import hf_hub_download
 from llama_cpp import Llama
 
-from common.models.chat import ChatCompletionRequest, ChatCompletionResponse, ChatMessage, ChatModel, ChatModelListResponse
+from common.models.chat import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatMessage,
+    ChatModel,
+    ChatModelListResponse,
+)
 from common.models.health import HealthResponse
-from common.utils.logs import get_logger
 
 from ..config.models import LlamaCppSettings
 from ..config.settings import load_settings
 
-log = get_logger("llama_cpp")
 _settings: LlamaCppSettings | None = None
 _llama: Llama | None = None
 _llama_lock = threading.Lock()
@@ -33,28 +37,52 @@ def _ensure_model_path(settings: LlamaCppSettings) -> Path:
     if local_path.exists():
         return local_path
     settings.model_dir.mkdir(parents=True, exist_ok=True)
-    hf_hub_download(repo_id=settings.model_id, filename=filename, local_dir=str(settings.model_dir), local_dir_use_symlinks=False)
+    hf_hub_download(
+        repo_id=settings.model_id,
+        filename=filename,
+        local_dir=str(settings.model_dir),
+        local_dir_use_symlinks=False,
+    )
     return local_path
 
 
 def _load_llama(settings: LlamaCppSettings) -> Llama:
     model_path = _ensure_model_path(settings)
-    kwargs: dict[str, object] = {"model_path": str(model_path), "n_ctx": settings.n_ctx, "n_gpu_layers": settings.n_gpu_layers, "n_batch": settings.n_batch, "seed": settings.seed}
+    kwargs: dict[str, object] = {
+        "model_path": str(model_path),
+        "chat_format": settings.chat_format,
+        "n_ctx": settings.n_ctx,
+        "n_gpu_layers": settings.n_gpu_layers,
+        "n_batch": settings.n_batch,
+        "seed": settings.seed,
+        "verbose": False,
+    }
     if settings.n_threads > 0:
         kwargs["n_threads"] = settings.n_threads
     return Llama(**kwargs)
 
 
-def _normalize_messages(messages: list[ChatMessage]) -> list[dict[str, str]]:
-    out: list[dict[str, str]] = []
+def _normalize_messages(messages: list[ChatMessage]) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
     for msg in messages:
         content = msg.content
         if isinstance(content, list):
-            text_parts = [item.text.strip() for item in content if item.text is not None and item.text.strip()]
+            text_parts = [
+                item.text.strip()
+                for item in content
+                if item.text is not None and item.text.strip()
+            ]
             content_str = "\n".join(text_parts).strip()
         else:
             content_str = (content or "").strip()
-        out.append({"role": msg.role, "content": content_str})
+        normalized: dict[str, object] = {"role": msg.role, "content": content_str}
+        if msg.name is not None:
+            normalized["name"] = msg.name
+        if msg.tool_call_id is not None:
+            normalized["tool_call_id"] = msg.tool_call_id
+        if msg.tool_calls is not None:
+            normalized["tool_calls"] = msg.tool_calls
+        out.append(normalized)
     return out
 
 
@@ -64,7 +92,6 @@ def startup() -> None:
     try:
         _llama = _load_llama(_settings)
     except Exception:
-        log.exception("Failed to load llama model")
         raise
 
 
@@ -96,6 +123,10 @@ def chat_completions(payload: ChatCompletionRequest) -> ChatCompletionResponse:
             kwargs["stop"] = payload.stop
         if payload.response_format is not None:
             kwargs["response_format"] = payload.response_format
+        if payload.tools is not None:
+            kwargs["tools"] = payload.tools
+        if payload.tool_choice is not None:
+            kwargs["tool_choice"] = payload.tool_choice
         with _llama_lock:
             response: object = _llama.create_chat_completion(**kwargs)
     except Exception as exc:
@@ -117,5 +148,7 @@ def chat_completions(payload: ChatCompletionRequest) -> ChatCompletionResponse:
     response_data.setdefault("created", int(time.time()))
     response_data.setdefault("model", payload.model or model_name)
     response_data.setdefault("choices", [])
-    response_data.setdefault("usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+    response_data.setdefault(
+        "usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    )
     return ChatCompletionResponse.model_validate(response_data)

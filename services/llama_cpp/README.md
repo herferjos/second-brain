@@ -24,6 +24,7 @@ Configuration
 - `model_id`: required Hugging Face repo id for auto-download (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`)
 - `quantization`: required quantization level of the model to download (e.g. `Q4_K_M`)
 - `model_dir`: download target directory (default `./models`)
+- `chat_format`: llama.cpp chat handler to use (default `chatml-function-calling`)
 - `n_ctx`: context size (default 4096)
 - `n_gpu_layers`: GPU layers (default 0)
 - `n_threads`: CPU threads (default 0 = llama.cpp default)
@@ -44,6 +45,8 @@ uv run llama-cpp-service
 ```
 
 Use `example.yaml` as the base for `config.yaml` before running. The example file includes the code defaults for optional runtime knobs and sample values for the required model settings.
+
+By default the service uses `chatml-function-calling` so OpenAI-style tool calls are emitted in `message.tool_calls` when the model cooperates with that handler.
 
 If the model file is not present locally, the service will download the specified
 quantization of the model from Hugging Face on startup.

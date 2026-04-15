@@ -25,6 +25,8 @@ services/*/config.yaml
 *.swp
 *.swo
 
+llms/
+
 # Collector persistence
 tmp/
 vault/

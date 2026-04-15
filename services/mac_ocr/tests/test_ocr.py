@@ -29,6 +29,23 @@ def test_ocr_image_path_returns_mistral_style_payload(
     assert payload.object == "ocr"
 
 
+def test_ocr_image_path_empty_text_returns_empty_pages(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    image_path = tmp_path / "frame.png"
+    image_path.write_bytes(b"fake-image")
+
+    monkeypatch.setattr("src.ocr.service._recognize_texts_from_path", lambda path: [])
+
+    payload = ocr_image_path(image_path)
+
+    assert isinstance(payload, OcrResponse)
+    assert payload.pages == []
+    assert payload.usage_info.pages_processed == 1
+    assert payload.object == "ocr"
+
+
 def test_ocr_image_path_missing_file_raises(tmp_path: Path) -> None:
     missing = tmp_path / "missing.png"
 

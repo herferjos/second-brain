@@ -15,6 +15,11 @@ class ChatContentPart(BaseModel):
 class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
     content: str | list[ChatContentPart] | None = None
+    name: str | None = None
+    tool_call_id: str | None = None
+    tool_calls: list[dict[str, object]] | None = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 class ChatCompletionRequest(BaseModel):
@@ -25,6 +30,8 @@ class ChatCompletionRequest(BaseModel):
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     stop: str | list[str] | None = None
     response_format: dict[str, object] | None = None
+    tools: list[dict[str, object]] | None = None
+    tool_choice: str | dict[str, object] | None = None
     stream: bool | None = False
 
 

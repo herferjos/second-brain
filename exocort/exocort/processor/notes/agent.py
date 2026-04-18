@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Any
 
@@ -90,6 +91,15 @@ def run_notes_agent(notes: NotesSettings, batch: BatchCandidate) -> BatchRunResu
     ]
     results: list[ToolCallResult] = []
     had_write_tool = False
+    api_key_present = bool(notes.api_key_env and os.getenv(notes.api_key_env))
+    api_key_value = os.getenv(notes.api_key_env, "") if notes.api_key_env else ""
+    print(
+        "[DEBUG] notes agent config "
+        f"provider={notes.provider!r} model={notes.model!r} api_base={notes.api_base!r} "
+        f"api_key_env={notes.api_key_env!r} api_key_present={api_key_present} "
+        f"api_key_len={len(api_key_value)} batch_tokens={batch.input_tokens} "
+        f"artifacts={len(batch.artifacts)}"
+    )
     bridge = ProviderBridge(
         ProviderConfig(
             provider=notes.provider,

@@ -64,7 +64,15 @@ class ProviderBridge:
         raise ValueError(f"response mode is not supported for provider={provider}.")
 
     def _api_key(self) -> str:
-        return os.getenv(self._config.api_key_env, "test_key") if self._config.api_key_env else "test_key"
+        env_name = self._config.api_key_env
+        api_key = os.getenv(env_name, "test_key") if env_name else "test_key"
+        print(
+            "[DEBUG] bridge api key "
+            f"provider={self._config.provider!r} api_base={self._config.api_base!r} "
+            f"api_key_env={env_name!r} present={bool(env_name and env_name in os.environ)} "
+            f"api_key_len={len(api_key)}"
+        )
+        return api_key
 
     def _provider_for(self, model: str) -> str:
         return infer_provider(model, self._config.api_base, self._config.provider)

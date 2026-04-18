@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
+from common.utils.ports import kill_processes_on_port
 from src.config.settings import load_settings
 
 app = FastAPI(title="Mac OCR", version="0.1.0")
@@ -12,6 +13,7 @@ app.include_router(api_router)
 
 def main() -> None:
     settings = load_settings()
+    kill_processes_on_port(settings.port)
     uvicorn.run(
         "app.main:app",
         host=settings.host,

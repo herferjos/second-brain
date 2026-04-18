@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
+from common.utils.ports import kill_processes_on_port
 from src.asr.permissions import ensure_speech_permission
 from src.config.settings import load_settings
 
@@ -15,6 +16,7 @@ def main() -> None:
     settings = load_settings()
     if not ensure_speech_permission(prompt=settings.prompt_permission):
         raise RuntimeError("Speech recognition permission is required.")
+    kill_processes_on_port(settings.port)
     uvicorn.run(
         "app.main:app",
         host=settings.host,

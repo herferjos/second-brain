@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
+from common.utils.ports import kill_processes_on_port
 from src.chat.service import startup
 from common.utils.logs import get_logger
 from src.config.settings import load_settings
@@ -16,6 +17,7 @@ log = get_logger("llama_cpp", "app")
 
 def main() -> None:
     settings = load_settings()
+    kill_processes_on_port(settings.port)
     log.info(
         "Starting llama.cpp app | host=%s | port=%s | reload=%s | log_level=%s",
         settings.host,
